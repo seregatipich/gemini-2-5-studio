@@ -39,27 +39,25 @@ serve(async (req) => {
         parts.push({ text: msg.content });
       }
 
-      // Add attachments if present
+      // Add attachments if present (now they come as base64 data URLs)
       if (msg.attachments && msg.attachments.length > 0) {
-        for (const url of msg.attachments) {
-          // Check if it's an image
-          if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-            try {
-              // Fetch the image and convert to base64
-              const imageResponse = await fetch(url);
-              const imageBuffer = await imageResponse.arrayBuffer();
-              const base64 = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
-              const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+        for (const dataUrl of msg.attachments) {
+          try {
+            // Extract mime type and base64 data from data URL
+            const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches && matches[1].startsWith('image/')) {
+              const mimeType = matches[1];
+              const base64Data = matches[2];
               
               parts.push({
                 inlineData: {
                   mimeType,
-                  data: base64
+                  data: base64Data
                 }
               });
-            } catch (error) {
-              console.error('Error fetching image:', error);
             }
+          } catch (error) {
+            console.error('Error processing attachment:', error);
           }
         }
       }

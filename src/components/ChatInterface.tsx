@@ -179,28 +179,35 @@ export function ChatInterface({
       onSessionCreated?.(currentSessionId);
     }
 
-    // Upload files to storage
-    let uploadedFileUrls: string[] = [];
+    // Convert files to base64 and upload to storage
+    let attachmentUrls: string[] = [];
+    let filePaths: string[] = [];
     if (attachedFiles.length > 0) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("User not authenticated");
 
         for (const file of attachedFiles) {
+          // Convert to base64 for sending to LLM
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve) => {
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              resolve(base64);
+            };
+            reader.readAsDataURL(file);
+          });
+          const base64Data = await base64Promise;
+          attachmentUrls.push(base64Data);
+
+          // Upload to storage for persistence
           const fileName = `${user.id}/${Date.now()}-${file.name}`;
+          filePaths.push(fileName);
           const { error: uploadError } = await supabase.storage
             .from('chat-attachments')
             .upload(fileName, file);
 
           if (uploadError) throw uploadError;
-
-          const { data } = await supabase.storage
-            .from('chat-attachments')
-            .createSignedUrl(fileName, 3600);
-
-          if (data?.signedUrl) {
-            uploadedFileUrls.push(data.signedUrl);
-          }
         }
       } catch (error) {
         console.error("File upload error:", error);
@@ -212,7 +219,7 @@ export function ChatInterface({
     const userMessage: Message = { 
       role: "user", 
       content: cleanedPrompt || "Analyze the attached files",
-      attachments: uploadedFileUrls 
+      attachments: attachmentUrls 
     };
     const userContent = cleanedPrompt || "Analyze the attached files";
     setMessages((prev) => [...prev, userMessage]);
@@ -236,15 +243,14 @@ export function ChatInterface({
       console.error("Error saving message:", saveError);
     }
 
-    // Save attachments metadata with file paths (not signed URLs)
-    if (uploadedFileUrls.length > 0 && savedMessage) {
-      const { data: { user } } = await supabase.auth.getUser();
-      const attachmentsData = attachedFiles.map((file) => ({
+    // Save attachments metadata with file paths
+    if (filePaths.length > 0 && savedMessage) {
+      const attachmentsData = filePaths.map((filePath, index) => ({
         message_id: savedMessage.id,
-        file_name: file.name,
-        file_path: `${user?.id}/${Date.now()}-${file.name}`,
-        file_size: file.size,
-        mime_type: file.type,
+        file_name: attachedFiles[index].name,
+        file_path: filePath,
+        file_size: attachedFiles[index].size,
+        mime_type: attachedFiles[index].type,
       }));
 
       const { error: attachError } = await supabase
