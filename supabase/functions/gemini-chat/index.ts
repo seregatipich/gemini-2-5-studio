@@ -12,14 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false } = await req.json();
+    const { messages, model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false, useWebSearch = false } = await req.json();
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    console.log(`Starting chat with model: ${model}, temperature: ${temperature}, jsonMode: ${jsonMode}`);
+    console.log(`Starting chat with model: ${model}, temperature: ${temperature}, jsonMode: ${jsonMode}, useWebSearch: ${useWebSearch}`);
 
     // Map model names to Gemini API model identifiers
     const modelMap: Record<string, string> = {
@@ -66,6 +66,15 @@ serve(async (req) => {
     // Add JSON response schema if jsonMode is enabled
     if (jsonMode) {
       requestBody.generationConfig.responseMimeType = "application/json";
+    }
+
+    // Add Google Search grounding if web search is enabled
+    if (useWebSearch) {
+      requestBody.tools = [
+        {
+          googleSearch: {}
+        }
+      ];
     }
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:streamGenerateContent?key=${GEMINI_API_KEY}&alt=sse`;

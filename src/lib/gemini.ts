@@ -8,6 +8,7 @@ export interface GeminiStreamOptions {
   model?: string;
   temperature?: number;
   jsonMode?: boolean;
+  useWebSearch?: boolean;
   onToken: (token: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
@@ -20,6 +21,7 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
     model = "gemini-2.5-flash",
     temperature = 0.7,
     jsonMode = false,
+    useWebSearch = false,
     onToken,
     onComplete,
     onError,
@@ -35,7 +37,7 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages, model, temperature, jsonMode }),
+        body: JSON.stringify({ messages, model, temperature, jsonMode, useWebSearch }),
         signal,
       }
     );

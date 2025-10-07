@@ -9,6 +9,7 @@ import { streamGeminiChat, Message } from "@/lib/gemini";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageContent } from "@/components/MessageContent";
+import { commandParser } from "@/lib/commands";
 
 interface ChatInterfaceProps {
   model?: string;
@@ -139,6 +140,10 @@ export function ChatInterface({
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return;
 
+    // Parse commands from input
+    const { cleanedPrompt, options } = commandParser.parse(input);
+    const useWebSearch = options.useWebSearch || false;
+
     // Create session if this is the first message
     let currentSessionId = sessionId;
     if (!currentSessionId) {
@@ -148,8 +153,8 @@ export function ChatInterface({
       onSessionCreated?.(currentSessionId);
     }
 
-    const userMessage: Message = { role: "user", content: input };
-    const userContent = input;
+    const userMessage: Message = { role: "user", content: cleanedPrompt };
+    const userContent = cleanedPrompt;
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsStreaming(true);
@@ -168,6 +173,7 @@ export function ChatInterface({
       model,
       temperature,
       jsonMode,
+      useWebSearch,
       signal: abortControllerRef.current.signal,
       onToken: (token) => {
         assistantResponse += token;
