@@ -70,10 +70,23 @@ export function ChatInterface({
               .select('file_path')
               .eq('message_id', msg.id);
             
+            const attachmentUrls: string[] = [];
+            if (attachments && attachments.length > 0) {
+              for (const att of attachments) {
+                const { data: urlData } = await supabase.storage
+                  .from('chat-attachments')
+                  .createSignedUrl(att.file_path, 3600);
+                
+                if (urlData?.signedUrl) {
+                  attachmentUrls.push(urlData.signedUrl);
+                }
+              }
+            }
+            
             return {
               role: msg.role as 'user' | 'assistant',
               content: msg.content,
-              attachments: attachments?.map(a => a.file_path) || []
+              attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined
             };
           })
         );
@@ -181,11 +194,13 @@ export function ChatInterface({
 
           if (uploadError) throw uploadError;
 
-          const { data: { publicUrl } } = supabase.storage
+          const { data } = await supabase.storage
             .from('chat-attachments')
-            .getPublicUrl(fileName);
+            .createSignedUrl(fileName, 3600);
 
-          uploadedFileUrls.push(publicUrl);
+          if (data?.signedUrl) {
+            uploadedFileUrls.push(data.signedUrl);
+          }
         }
       } catch (error) {
         console.error("File upload error:", error);
@@ -221,12 +236,13 @@ export function ChatInterface({
       console.error("Error saving message:", saveError);
     }
 
-    // Save attachments metadata
+    // Save attachments metadata with file paths (not signed URLs)
     if (uploadedFileUrls.length > 0 && savedMessage) {
-      const attachmentsData = attachedFiles.map((file, index) => ({
+      const { data: { user } } = await supabase.auth.getUser();
+      const attachmentsData = attachedFiles.map((file) => ({
         message_id: savedMessage.id,
         file_name: file.name,
-        file_path: uploadedFileUrls[index],
+        file_path: `${user?.id}/${Date.now()}-${file.name}`,
         file_size: file.size,
         mime_type: file.type,
       }));
