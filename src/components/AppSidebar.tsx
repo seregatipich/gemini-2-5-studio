@@ -139,8 +139,8 @@ export function AppSidebar({
                           session.name !== "New Session" && "animate-fade-in"
                         )}
                       >
-                        <MessageSquare className="h-4 w-4" />
-                        <span className="truncate">{session.name}</span>
+                        <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate overflow-hidden text-ellipsis whitespace-nowrap">{session.name}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))
