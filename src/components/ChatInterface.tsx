@@ -354,8 +354,14 @@ export function ChatInterface({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+      </div>
+
+      <ScrollArea className="flex-1 p-6 relative z-10" ref={scrollRef}>
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 && !currentAssistantMessage && (
             <div className="flex items-center justify-center h-full py-20">
@@ -443,7 +449,7 @@ export function ChatInterface({
         </div>
       </ScrollArea>
 
-      <div className="border-t border-border bg-card">
+      <div className="border-t border-border bg-card/80 backdrop-blur-sm relative z-10">
         {attachedFiles.length > 0 && (
           <div className="max-w-4xl mx-auto px-4 pt-3">
             <div className="flex flex-wrap gap-2">
