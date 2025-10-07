@@ -1,4 +1,4 @@
-import { MessageSquare, Settings, Plus } from "lucide-react";
+import { MessageSquare, Settings, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Sidebar,
@@ -16,6 +16,18 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface Session {
   id: string;
@@ -34,6 +46,7 @@ export function AppSidebar({
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadSessions();
@@ -87,6 +100,35 @@ export function AppSidebar({
     await supabase.auth.signOut();
   };
 
+  const handleDeleteAll = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "All sessions deleted",
+      });
+
+      // Trigger new session after deleting all
+      onNewSession?.();
+    } catch (error) {
+      console.error('Error deleting sessions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete sessions",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
@@ -116,7 +158,33 @@ export function AppSidebar({
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Sessions</SidebarGroupLabel>
+          <div className="flex items-center justify-between px-3">
+            <SidebarGroupLabel>Sessions</SidebarGroupLabel>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-6 w-6 opacity-70 hover:opacity-100"
+                  disabled={sessions.length === 0}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete all sessions?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. All your chat sessions and messages will be permanently deleted.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAll}>Delete All</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
           <SidebarGroupContent>
             <ScrollArea className="h-[calc(100vh-300px)]">
               <SidebarMenu>
@@ -135,12 +203,11 @@ export function AppSidebar({
                         isActive={activeSessionId === session.id}
                         onClick={() => onSessionSelect?.(session.id)}
                         className={cn(
-                          "transition-all duration-300 flex items-center gap-2 w-full",
                           session.name !== "New Session" && "animate-fade-in"
                         )}
                       >
-                        <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate min-w-0 flex-1 text-left">{session.name}</span>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>{session.name}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))
