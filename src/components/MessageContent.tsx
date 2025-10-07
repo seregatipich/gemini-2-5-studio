@@ -2,16 +2,17 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, FileText } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Components } from "react-markdown";
 
 interface MessageContentProps {
   content: string;
+  attachments?: string[];
 }
 
-export function MessageContent({ content }: MessageContentProps) {
+export function MessageContent({ content, attachments }: MessageContentProps) {
   const components: Components = {
     code({ node, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || "");
@@ -32,10 +33,38 @@ export function MessageContent({ content }: MessageContentProps) {
   };
 
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {content}
-      </ReactMarkdown>
+    <div className="space-y-3">
+      {attachments && attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((url, index) => {
+            const isImage = url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+            return isImage ? (
+              <img
+                key={index}
+                src={url}
+                alt={`Attachment ${index + 1}`}
+                className="max-w-xs rounded-lg border"
+              />
+            ) : (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg border hover:bg-muted/80 transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                <span className="text-sm">Attachment {index + 1}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }

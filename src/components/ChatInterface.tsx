@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Square } from "lucide-react";
+import { Send, Square, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,8 +33,10 @@ export function ChatInterface({
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load session messages on mount
   useEffect(() => {
@@ -61,10 +63,21 @@ export function ChatInterface({
       if (error) throw error;
       
       if (data) {
-        setMessages(data.map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content
-        })));
+        const messagesWithAttachments = await Promise.all(
+          data.map(async (msg) => {
+            const { data: attachments } = await supabase
+              .from('message_attachments')
+              .select('file_path')
+              .eq('message_id', msg.id);
+            
+            return {
+              role: msg.role as 'user' | 'assistant',
+              content: msg.content,
+              attachments: attachments?.map(a => a.file_path) || []
+            };
+          })
+        );
+        setMessages(messagesWithAttachments);
       }
     } catch (error) {
       console.error('Error loading session:', error);
@@ -138,7 +151,7 @@ export function ChatInterface({
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isStreaming) return;
+    if ((!input.trim() && attachedFiles.length === 0) || isStreaming) return;
 
     // Parse commands from input
     const { cleanedPrompt, options } = commandParser.parse(input);
@@ -153,15 +166,77 @@ export function ChatInterface({
       onSessionCreated?.(currentSessionId);
     }
 
-    const userMessage: Message = { role: "user", content: cleanedPrompt };
-    const userContent = cleanedPrompt;
+    // Upload files to storage
+    let uploadedFileUrls: string[] = [];
+    if (attachedFiles.length > 0) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        for (const file of attachedFiles) {
+          const fileName = `${user.id}/${Date.now()}-${file.name}`;
+          const { error: uploadError } = await supabase.storage
+            .from('chat-attachments')
+            .upload(fileName, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('chat-attachments')
+            .getPublicUrl(fileName);
+
+          uploadedFileUrls.push(publicUrl);
+        }
+      } catch (error) {
+        console.error("File upload error:", error);
+        toast.error("Failed to upload files");
+        return;
+      }
+    }
+
+    const userMessage: Message = { 
+      role: "user", 
+      content: cleanedPrompt || "Analyze the attached files",
+      attachments: uploadedFileUrls 
+    };
+    const userContent = cleanedPrompt || "Analyze the attached files";
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setAttachedFiles([]);
     setIsStreaming(true);
     setCurrentAssistantMessage("");
 
-    // Save user message
-    await saveMessage(currentSessionId, "user", userContent);
+    // Save user message with ID returned
+    const { data: savedMessage, error: saveError } = await supabase
+      .from("messages")
+      .insert({
+        session_id: currentSessionId,
+        role: "user",
+        content: userContent,
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      console.error("Error saving message:", saveError);
+    }
+
+    // Save attachments metadata
+    if (uploadedFileUrls.length > 0 && savedMessage) {
+      const attachmentsData = attachedFiles.map((file, index) => ({
+        message_id: savedMessage.id,
+        file_name: file.name,
+        file_path: uploadedFileUrls[index],
+        file_size: file.size,
+        mime_type: file.type,
+      }));
+
+      const { error: attachError } = await supabase
+        .from("message_attachments")
+        .insert(attachmentsData);
+
+      if (attachError) console.error("Failed to save attachments:", attachError);
+    }
 
     abortControllerRef.current = new AbortController();
 
@@ -220,8 +295,32 @@ export function ChatInterface({
     setMessages([]);
     setCurrentAssistantMessage("");
     setInput("");
+    setAttachedFiles([]);
     setSessionId(null);
     onNewSession?.();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      const maxSize = 20 * 1024 * 1024; // 20MB
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds 20MB limit`);
+        return false;
+      }
+      return true;
+    });
+
+    if (attachedFiles.length + validFiles.length > 10) {
+      toast.error("Maximum 10 files allowed");
+      return;
+    }
+
+    setAttachedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -276,7 +375,7 @@ export function ChatInterface({
                   {message.role === "user" ? "U" : "AI"}
                 </div>
                 <div className="flex-1">
-                  <MessageContent content={message.content} />
+                  <MessageContent content={message.content} attachments={message.attachments} />
                 </div>
               </div>
             </Card>
@@ -314,8 +413,49 @@ export function ChatInterface({
         </div>
       </ScrollArea>
 
-      <div className="border-t border-border p-4 bg-card">
-        <div className="max-w-4xl mx-auto flex gap-2">
+      <div className="border-t border-border bg-card">
+        {attachedFiles.length > 0 && (
+          <div className="max-w-4xl mx-auto px-4 pt-3">
+            <div className="flex flex-wrap gap-2">
+              {attachedFiles.map((file, index) => (
+                <div key={index} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border">
+                  {file.type.startsWith('image/') ? (
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm truncate max-w-[150px]">{file.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => removeFile(index)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="max-w-4xl mx-auto p-4 flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.txt,.md,.json,.csv"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming}
+            className="h-[60px] w-[60px] shrink-0"
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -343,7 +483,7 @@ export function ChatInterface({
               onClick={handleSend}
               size="icon"
               className="h-[60px] w-[60px] shrink-0 bg-gradient-primary hover:opacity-90"
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachedFiles.length === 0}
             >
               <Send className="h-5 w-5" />
             </Button>

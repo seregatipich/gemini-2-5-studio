@@ -30,10 +30,44 @@ serve(async (req) => {
 
     const apiModel = modelMap[model] || 'gemini-2.5-flash';
 
-    // Transform messages to Gemini format
-    const contents = messages.map((msg: any) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
+    // Transform messages to Gemini format with attachment support
+    const contents = await Promise.all(messages.map(async (msg: any) => {
+      const parts = [];
+      
+      // Add text content
+      if (msg.content) {
+        parts.push({ text: msg.content });
+      }
+
+      // Add attachments if present
+      if (msg.attachments && msg.attachments.length > 0) {
+        for (const url of msg.attachments) {
+          // Check if it's an image
+          if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            try {
+              // Fetch the image and convert to base64
+              const imageResponse = await fetch(url);
+              const imageBuffer = await imageResponse.arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+              const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+              
+              parts.push({
+                inlineData: {
+                  mimeType,
+                  data: base64
+                }
+              });
+            } catch (error) {
+              console.error('Error fetching image:', error);
+            }
+          }
+        }
+      }
+
+      return {
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts
+      };
     }));
 
     // Build request body
