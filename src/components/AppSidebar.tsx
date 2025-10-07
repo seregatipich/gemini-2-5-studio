@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export function AppSidebar() {
+export function AppSidebar({ onNewSession }: { onNewSession?: () => void }) {
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
@@ -32,7 +32,11 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <div className="px-3 py-2">
-            <Button className="w-full" size="sm">
+            <Button 
+              className="w-full" 
+              size="sm"
+              onClick={onNewSession}
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Session
             </Button>

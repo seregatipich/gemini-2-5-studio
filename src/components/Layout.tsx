@@ -8,6 +8,7 @@ interface LayoutProps {
     model: string;
     temperature: number;
     jsonMode: boolean;
+    onNewSession: () => void;
   }) => ReactNode;
 }
 
@@ -15,11 +16,16 @@ export function Layout({ children }: LayoutProps) {
   const [model, setModel] = useState("gemini-2.5-flash");
   const [temperature, setTemperature] = useState(0.7);
   const [jsonMode, setJsonMode] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0);
+
+  const handleNewSession = () => {
+    setSessionKey(prev => prev + 1);
+  };
 
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
+        <AppSidebar onNewSession={handleNewSession} />
         <div className="flex-1 flex flex-col">
           <TopBar
             model={model}
@@ -29,8 +35,8 @@ export function Layout({ children }: LayoutProps) {
             jsonMode={jsonMode}
             setJsonMode={setJsonMode}
           />
-          <main className="flex-1 overflow-hidden">
-            {children({ model, temperature, jsonMode })}
+          <main className="flex-1 overflow-hidden" key={sessionKey}>
+            {children({ model, temperature, jsonMode, onNewSession: handleNewSession })}
           </main>
         </div>
       </div>

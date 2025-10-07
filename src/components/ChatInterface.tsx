@@ -14,7 +14,7 @@ interface ChatInterfaceProps {
   jsonMode?: boolean;
 }
 
-export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false }: ChatInterfaceProps) {
+export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false, onNewSession }: ChatInterfaceProps & { onNewSession?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -39,6 +39,8 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
 
     abortControllerRef.current = new AbortController();
 
+    let assistantResponse = "";
+
     await streamGeminiChat({
       messages: [...messages, userMessage],
       model,
@@ -46,12 +48,13 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
       jsonMode,
       signal: abortControllerRef.current.signal,
       onToken: (token) => {
-        setCurrentAssistantMessage((prev) => prev + token);
+        assistantResponse += token;
+        setCurrentAssistantMessage(assistantResponse);
       },
       onComplete: () => {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: currentAssistantMessage },
+          { role: "assistant", content: assistantResponse },
         ]);
         setCurrentAssistantMessage("");
         setIsStreaming(false);
@@ -70,16 +73,16 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      if (currentAssistantMessage) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: currentAssistantMessage },
-        ]);
-      }
-      setCurrentAssistantMessage("");
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
+  };
+
+  const handleNewSession = () => {
+    setMessages([]);
+    setCurrentAssistantMessage("");
+    setInput("");
+    onNewSession?.();
   };
 
   return (
