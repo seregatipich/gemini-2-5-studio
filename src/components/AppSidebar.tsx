@@ -83,6 +83,10 @@ export function AppSidebar({
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
@@ -150,9 +154,9 @@ export function AppSidebar({
       <SidebarFooter className="border-t border-border p-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
+            <SidebarMenuButton onClick={handleSignOut}>
               <Settings className="h-4 w-4" />
-              <span>Settings</span>
+              <span>Sign Out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
