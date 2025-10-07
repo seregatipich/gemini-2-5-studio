@@ -1,4 +1,4 @@
-import { MessageSquare, Settings, Plus, Trash2 } from "lucide-react";
+import { MessageSquare, Settings, Plus, Trash2, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Sidebar,
@@ -27,6 +27,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 
 interface Session {
@@ -137,7 +142,7 @@ export function AppSidebar({
             <MessageSquare className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold">Gemini 2.5 Studio</h2>
+            <h2 className="text-sm font-semibold">S.P. AI Studio</h2>
             <p className="text-xs text-muted-foreground">AI Playground</p>
           </div>
         </div>
@@ -219,14 +224,29 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleSignOut}>
-              <Settings className="h-4 w-4" />
-              <span>Sign Out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1">
+                <Settings className="h-4 w-4 mr-2" />
+                <span>Settings</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Settings</h4>
+                <p className="text-sm text-muted-foreground">
+                  Settings panel coming soon...
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <Button variant="outline" size="sm" className="flex-1" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            <span>Sign Out</span>
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
