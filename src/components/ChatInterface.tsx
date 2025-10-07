@@ -15,6 +15,7 @@ interface ChatInterfaceProps {
   model?: string;
   temperature?: number;
   jsonMode?: boolean;
+  useWebSearch?: boolean;
   sessionId?: string | null;
   onSessionCreated?: (sessionId: string) => void;
 }
@@ -22,7 +23,8 @@ interface ChatInterfaceProps {
 export function ChatInterface({ 
   model = "gemini-2.5-flash", 
   temperature = 0.7, 
-  jsonMode = false, 
+  jsonMode = false,
+  useWebSearch = false,
   sessionId: initialSessionId,
   onSessionCreated,
   onNewSession 

@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
@@ -8,6 +8,7 @@ interface LayoutProps {
     model: string;
     temperature: number;
     jsonMode: boolean;
+    useWebSearch: boolean;
     sessionId: string | null;
     onSessionCreated: (sessionId: string) => void;
     onNewSession: () => void;
@@ -18,8 +19,14 @@ export function Layout({ children }: LayoutProps) {
   const [model, setModel] = useState("gemini-2.5-flash");
   const [temperature, setTemperature] = useState(0.7);
   const [jsonMode, setJsonMode] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
+
+  // Set dark theme by default
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+  }, []);
 
   const handleNewSession = () => {
     setSessionId(null);
@@ -51,12 +58,15 @@ export function Layout({ children }: LayoutProps) {
             setTemperature={setTemperature}
             jsonMode={jsonMode}
             setJsonMode={setJsonMode}
+            useWebSearch={useWebSearch}
+            setUseWebSearch={setUseWebSearch}
           />
           <main className="flex-1 overflow-hidden" key={sessionKey}>
             {children({ 
               model, 
               temperature, 
-              jsonMode, 
+              jsonMode,
+              useWebSearch,
               sessionId,
               onSessionCreated: handleSessionCreated,
               onNewSession: handleNewSession 

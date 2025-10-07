@@ -6,11 +6,12 @@ const Index = () => {
   return (
     <AuthWrapper>
       <Layout>
-        {({ model, temperature, jsonMode, sessionId, onSessionCreated, onNewSession }) => (
+        {({ model, temperature, jsonMode, useWebSearch, sessionId, onSessionCreated, onNewSession }) => (
           <ChatInterface 
             model={model} 
             temperature={temperature} 
             jsonMode={jsonMode}
+            useWebSearch={useWebSearch}
             sessionId={sessionId}
             onSessionCreated={onSessionCreated}
             onNewSession={onNewSession}

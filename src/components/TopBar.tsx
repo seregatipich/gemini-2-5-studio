@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Moon, Sun, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -28,17 +28,20 @@ interface TopBarProps {
   setTemperature: (temperature: number) => void;
   jsonMode: boolean;
   setJsonMode: (jsonMode: boolean) => void;
+  useWebSearch: boolean;
+  setUseWebSearch: (useWebSearch: boolean) => void;
 }
 
-export function TopBar({ model, setModel, temperature, setTemperature, jsonMode, setJsonMode }: TopBarProps) {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
-
+export function TopBar({ 
+  model, 
+  setModel, 
+  temperature, 
+  setTemperature, 
+  jsonMode, 
+  setJsonMode,
+  useWebSearch,
+  setUseWebSearch
+}: TopBarProps) {
   return (
     <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
       <div className="flex items-center gap-2">
@@ -93,17 +96,18 @@ export function TopBar({ model, setModel, temperature, setTemperature, jsonMode,
                 </div>
                 <Switch checked={jsonMode} onCheckedChange={setJsonMode} />
               </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Web Search</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Enable Google Search grounding
+                  </p>
+                </div>
+                <Switch checked={useWebSearch} onCheckedChange={setUseWebSearch} />
+              </div>
             </div>
           </SheetContent>
         </Sheet>
-
-        <Button variant="ghost" size="icon" onClick={toggleTheme}>
-          {theme === "light" ? (
-            <Moon className="h-4 w-4" />
-          ) : (
-            <Sun className="h-4 w-4" />
-          )}
-        </Button>
       </div>
     </header>
   );
