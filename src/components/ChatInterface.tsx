@@ -182,6 +182,7 @@ export function ChatInterface({
     // Convert files to base64 and upload to storage
     let attachmentUrls: string[] = [];
     let filePaths: string[] = [];
+    let fileNames: string[] = [];
     if (attachedFiles.length > 0) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -200,12 +201,17 @@ export function ChatInterface({
           const base64Data = await base64Promise;
           attachmentUrls.push(base64Data);
 
-          // Upload to storage for persistence
-          const fileName = `${user.id}/${Date.now()}-${file.name}`;
-          filePaths.push(fileName);
+          // Generate safe filename (ASCII only) for storage
+          const timestamp = Date.now();
+          const fileExt = file.name.split('.').pop() || '';
+          const safePath = `${user.id}/${timestamp}.${fileExt}`;
+          
+          filePaths.push(safePath);
+          fileNames.push(file.name); // Store original name
+          
           const { error: uploadError } = await supabase.storage
             .from('chat-attachments')
-            .upload(fileName, file);
+            .upload(safePath, file);
 
           if (uploadError) throw uploadError;
         }
@@ -247,7 +253,7 @@ export function ChatInterface({
     if (filePaths.length > 0 && savedMessage) {
       const attachmentsData = filePaths.map((filePath, index) => ({
         message_id: savedMessage.id,
-        file_name: attachedFiles[index].name,
+        file_name: fileNames[index], // Use original filename
         file_path: filePath,
         file_size: attachedFiles[index].size,
         mime_type: attachedFiles[index].type,
