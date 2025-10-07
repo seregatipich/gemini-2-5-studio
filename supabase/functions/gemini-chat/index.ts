@@ -23,12 +23,12 @@ serve(async (req) => {
 
     // Map model names to Gemini API model identifiers
     const modelMap: Record<string, string> = {
-      'gemini-2.5-pro': 'gemini-2.5-pro-latest',
-      'gemini-2.5-flash': 'gemini-2.5-flash-latest',
-      'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite-latest',
+      'gemini-2.5-pro': 'gemini-2.5-pro',
+      'gemini-2.5-flash': 'gemini-2.5-flash',
+      'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
     };
 
-    const apiModel = modelMap[model] || 'gemini-2.5-flash-latest';
+    const apiModel = modelMap[model] || 'gemini-2.5-flash';
 
     // Transform messages to Gemini format
     const contents = messages.map((msg: any) => ({
