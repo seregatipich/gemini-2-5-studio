@@ -135,12 +135,12 @@ export function AppSidebar({
                         isActive={activeSessionId === session.id}
                         onClick={() => onSessionSelect?.(session.id)}
                         className={cn(
-                          "transition-all duration-300",
+                          "transition-all duration-300 flex items-center gap-2 w-full",
                           session.name !== "New Session" && "animate-fade-in"
                         )}
                       >
                         <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate overflow-hidden text-ellipsis whitespace-nowrap">{session.name}</span>
+                        <span className="truncate min-w-0 flex-1 text-left">{session.name}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))
