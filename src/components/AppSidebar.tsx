@@ -1,4 +1,5 @@
 import { MessageSquare, Settings, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,8 +14,75 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
-export function AppSidebar({ onNewSession }: { onNewSession?: () => void }) {
+interface Session {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export function AppSidebar({ 
+  onNewSession, 
+  activeSessionId, 
+  onSessionSelect 
+}: { 
+  onNewSession?: () => void;
+  activeSessionId?: string | null;
+  onSessionSelect?: (sessionId: string) => void;
+}) {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadSessions();
+    
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('sessions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sessions'
+        },
+        () => {
+          loadSessions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const loadSessions = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setSessions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, name, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSessions(data || []);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
@@ -48,12 +116,31 @@ export function AppSidebar({ onNewSession }: { onNewSession?: () => void }) {
           <SidebarGroupContent>
             <ScrollArea className="h-[calc(100vh-300px)]">
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive>
-                    <MessageSquare className="h-4 w-4" />
-                    <span>New Chat</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {isLoading ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground">
+                    Loading sessions...
+                  </div>
+                ) : sessions.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground">
+                    No sessions yet
+                  </div>
+                ) : (
+                  sessions.map((session) => (
+                    <SidebarMenuItem key={session.id}>
+                      <SidebarMenuButton
+                        isActive={activeSessionId === session.id}
+                        onClick={() => onSessionSelect?.(session.id)}
+                        className={cn(
+                          "transition-all duration-300",
+                          session.name !== "New Session" && "animate-fade-in"
+                        )}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="truncate">{session.name}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))
+                )}
               </SidebarMenu>
             </ScrollArea>
           </SidebarGroupContent>

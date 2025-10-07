@@ -7,20 +7,39 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { streamGeminiChat, Message } from "@/lib/gemini";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChatInterfaceProps {
   model?: string;
   temperature?: number;
   jsonMode?: boolean;
+  sessionId?: string | null;
+  onSessionCreated?: (sessionId: string) => void;
 }
 
-export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false, onNewSession }: ChatInterfaceProps & { onNewSession?: () => void }) {
+export function ChatInterface({ 
+  model = "gemini-2.5-flash", 
+  temperature = 0.7, 
+  jsonMode = false, 
+  sessionId: initialSessionId,
+  onSessionCreated,
+  onNewSession 
+}: ChatInterfaceProps & { onNewSession?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load session messages on mount
+  useEffect(() => {
+    if (initialSessionId) {
+      loadSession(initialSessionId);
+    }
+  }, [initialSessionId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -28,18 +47,120 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
     }
   }, [messages, currentAssistantMessage]);
 
+  const loadSession = async (id: string) => {
+    setIsLoadingSession(true);
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('session_id', id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      if (data) {
+        setMessages(data.map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading session:', error);
+      toast.error('Failed to load session');
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
+
+  const createSession = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please sign in to save sessions');
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert({
+          user_id: user.id,
+          model,
+          temperature,
+          json_mode: jsonMode,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data.id;
+    } catch (error) {
+      console.error('Error creating session:', error);
+      toast.error('Failed to create session');
+      return null;
+    }
+  };
+
+  const saveMessage = async (sessionId: string, role: 'user' | 'assistant', content: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          session_id: sessionId,
+          role,
+          content,
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving message:', error);
+    }
+  };
+
+  const generateChatName = async (userMessage: string, assistantResponse: string, sessionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('name-chat', {
+        body: { userMessage, assistantResponse }
+      });
+
+      if (error) throw error;
+
+      if (data?.chatName) {
+        await supabase
+          .from('sessions')
+          .update({ name: data.chatName })
+          .eq('id', sessionId);
+      }
+    } catch (error) {
+      console.error('Error generating chat name:', error);
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return;
 
+    // Create session if this is the first message
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      currentSessionId = await createSession();
+      if (!currentSessionId) return;
+      setSessionId(currentSessionId);
+      onSessionCreated?.(currentSessionId);
+    }
+
     const userMessage: Message = { role: "user", content: input };
+    const userContent = input;
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsStreaming(true);
     setCurrentAssistantMessage("");
 
+    // Save user message
+    await saveMessage(currentSessionId, "user", userContent);
+
     abortControllerRef.current = new AbortController();
 
     let assistantResponse = "";
+    const isFirstMessage = messages.length === 0;
 
     await streamGeminiChat({
       messages: [...messages, userMessage],
@@ -51,7 +172,7 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
         assistantResponse += token;
         setCurrentAssistantMessage(assistantResponse);
       },
-      onComplete: () => {
+      onComplete: async () => {
         setMessages((prev) => [
           ...prev,
           { role: "assistant", content: assistantResponse },
@@ -59,6 +180,16 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
         setCurrentAssistantMessage("");
         setIsStreaming(false);
         abortControllerRef.current = null;
+
+        // Save assistant message
+        if (currentSessionId) {
+          await saveMessage(currentSessionId, "assistant", assistantResponse);
+          
+          // Generate chat name if this is the first exchange
+          if (isFirstMessage) {
+            await generateChatName(userContent, assistantResponse, currentSessionId);
+          }
+        }
       },
       onError: (error) => {
         console.error("Stream error:", error);
@@ -82,6 +213,7 @@ export function ChatInterface({ model = "gemini-2.5-flash", temperature = 0.7, j
     setMessages([]);
     setCurrentAssistantMessage("");
     setInput("");
+    setSessionId(null);
     onNewSession?.();
   };
 
