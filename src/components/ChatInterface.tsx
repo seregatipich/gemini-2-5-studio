@@ -69,18 +69,34 @@ export function ChatInterface({
           data.map(async (msg) => {
             const { data: attachments } = await supabase
               .from('message_attachments')
-              .select('file_path')
+              .select('file_path, mime_type')
               .eq('message_id', msg.id);
             
             const attachmentUrls: string[] = [];
             if (attachments && attachments.length > 0) {
               for (const att of attachments) {
-                const { data: urlData } = await supabase.storage
-                  .from('chat-attachments')
-                  .createSignedUrl(att.file_path, 3600);
-                
-                if (urlData?.signedUrl) {
-                  attachmentUrls.push(urlData.signedUrl);
+                try {
+                  // Download file from storage
+                  const { data: fileData, error: downloadError } = await supabase.storage
+                    .from('chat-attachments')
+                    .download(att.file_path);
+                  
+                  if (downloadError) {
+                    console.error('Error downloading file:', downloadError);
+                    continue;
+                  }
+                  
+                  // Convert blob to base64 data URL
+                  const base64Promise = new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(fileData);
+                  });
+                  const base64Data = await base64Promise;
+                  attachmentUrls.push(base64Data);
+                } catch (error) {
+                  console.error('Error processing attachment:', error);
                 }
               }
             }
