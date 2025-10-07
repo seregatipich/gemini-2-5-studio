@@ -4,7 +4,9 @@ import { ChatInterface } from "@/components/ChatInterface";
 const Index = () => {
   return (
     <Layout>
-      <ChatInterface />
+      {({ model, temperature, jsonMode }) => (
+        <ChatInterface model={model} temperature={temperature} jsonMode={jsonMode} />
+      )}
     </Layout>
   );
 };

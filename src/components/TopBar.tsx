@@ -21,11 +21,17 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
-export function TopBar() {
+interface TopBarProps {
+  model: string;
+  setModel: (model: string) => void;
+  temperature: number;
+  setTemperature: (temperature: number) => void;
+  jsonMode: boolean;
+  setJsonMode: (jsonMode: boolean) => void;
+}
+
+export function TopBar({ model, setModel, temperature, setTemperature, jsonMode, setJsonMode }: TopBarProps) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [model, setModel] = useState("gemini-2.5-flash");
-  const [temperature, setTemperature] = useState([0.7]);
-  const [jsonMode, setJsonMode] = useState(false);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -66,17 +72,25 @@ export function TopBar() {
             </SheetHeader>
             <div className="space-y-6 py-6">
               <div className="space-y-2">
-                <Label>Temperature: {temperature[0].toFixed(2)}</Label>
+                <Label>Temperature: {temperature.toFixed(2)}</Label>
                 <Slider
-                  value={temperature}
-                  onValueChange={setTemperature}
+                  value={[temperature]}
+                  onValueChange={(value) => setTemperature(value[0])}
                   min={0}
                   max={2}
                   step={0.1}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Higher values make output more random, lower values more focused
+                </p>
               </div>
               <div className="flex items-center justify-between">
-                <Label>JSON Mode</Label>
+                <div className="space-y-0.5">
+                  <Label>JSON Mode</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Force structured JSON output
+                  </p>
+                </div>
                 <Switch checked={jsonMode} onCheckedChange={setJsonMode} />
               </div>
             </div>
