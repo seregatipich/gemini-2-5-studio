@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/generative-ai@0.21.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,15 +24,60 @@ serve(async (req) => {
 
     // Map model names to Gemini API model identifiers
     const modelMap: Record<string, string> = {
-      'gemini-2.5-pro': 'gemini-2.5-pro',
-      'gemini-2.5-flash': 'gemini-2.5-flash',
-      'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
+      'gemini-2.5-pro': 'gemini-2.0-flash-exp',
+      'gemini-2.5-flash': 'gemini-2.0-flash-exp',
+      'gemini-2.5-flash-lite': 'gemini-2.0-flash-exp',
     };
 
-    const apiModel = modelMap[model] || 'gemini-2.5-flash';
+    const apiModel = modelMap[model] || 'gemini-2.0-flash-exp';
 
-    // Transform messages to Gemini format with attachment support
-    const contents = await Promise.all(messages.map(async (msg: any) => {
+    // Initialize Gemini AI
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    
+    // Build generation config
+    const generationConfig: any = {
+      temperature,
+      maxOutputTokens: 8192,
+    };
+
+    if (jsonMode) {
+      generationConfig.responseMimeType = "application/json";
+    }
+
+    // Build tools config
+    const tools: any[] = [];
+    if (useWebSearch) {
+      tools.push({
+        googleSearch: {}
+      });
+    }
+
+    const geminiModel = genAI.getGenerativeModel({ 
+      model: apiModel,
+      generationConfig,
+      tools: tools.length > 0 ? tools : undefined,
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_NONE
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE
+        }
+      ]
+    });
+
+    // Transform messages to Gemini format
+    const contents = messages.map((msg: any) => {
       const parts = [];
       
       // Add text content
@@ -39,11 +85,10 @@ serve(async (req) => {
         parts.push({ text: msg.content });
       }
 
-      // Add attachments if present (now they come as base64 data URLs)
+      // Add attachments if present (base64 data URLs)
       if (msg.attachments && msg.attachments.length > 0) {
         for (const dataUrl of msg.attachments) {
           try {
-            // Extract mime type and base64 data from data URL
             const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
             if (matches && matches[1].startsWith('image/')) {
               const mimeType = matches[1];
@@ -66,114 +111,29 @@ serve(async (req) => {
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts
       };
-    }));
-
-    // Build request body
-    const requestBody: any = {
-      contents,
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 8192,
-      },
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_NONE"
-        }
-      ]
-    };
-
-    // Add JSON response schema if jsonMode is enabled
-    if (jsonMode) {
-      requestBody.generationConfig.responseMimeType = "application/json";
-    }
-
-    // Add Google Search grounding if web search is enabled
-    if (useWebSearch) {
-      requestBody.tools = [
-        {
-          googleSearch: {}
-        }
-      ];
-    }
-
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:streamGenerateContent?key=${GEMINI_API_KEY}&alt=sse`;
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: `Gemini API error: ${response.status}` }), 
-        {
-          status: response.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    // Start streaming chat
+    const chat = geminiModel.startChat({
+      history: contents.slice(0, -1),
+      generationConfig,
+    });
+
+    const lastMessage = contents[contents.length - 1];
+    const result = await chat.sendMessageStream(lastMessage.parts);
 
     // Stream the response back to the client
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
-          controller.close();
-          return;
-        }
-
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              controller.close();
-              break;
-            }
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const jsonStr = line.slice(6);
-                if (jsonStr.trim() === '[DONE]') continue;
-                
-                try {
-                  const data = JSON.parse(jsonStr);
-                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                  
-                  if (text) {
-                    // Send SSE formatted response
-                    const sseData = `data: ${JSON.stringify({ text })}\n\n`;
-                    controller.enqueue(new TextEncoder().encode(sseData));
-                  }
-                } catch (e) {
-                  console.error('Error parsing chunk:', e);
-                }
-              }
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
+              const sseData = `data: ${JSON.stringify({ text })}\n\n`;
+              controller.enqueue(new TextEncoder().encode(sseData));
             }
           }
+          controller.close();
         } catch (error) {
           console.error('Stream error:', error);
           controller.error(error);
