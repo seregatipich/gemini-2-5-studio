@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { streamGeminiChat, Message } from "@/lib/gemini";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageContent } from "@/components/MessageContent";
 
 interface ChatInterfaceProps {
   model?: string;
@@ -268,8 +269,8 @@ export function ChatInterface({
                 >
                   {message.role === "user" ? "U" : "AI"}
                 </div>
-                <div className="flex-1 prose prose-sm dark:prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                <div className="flex-1">
+                  <MessageContent content={message.content} />
                 </div>
               </div>
             </Card>
@@ -281,8 +282,8 @@ export function ChatInterface({
                 <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center text-white">
                   AI
                 </div>
-                <div className="flex-1 prose prose-sm dark:prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap">{currentAssistantMessage}</p>
+                <div className="flex-1">
+                  <MessageContent content={currentAssistantMessage} />
                 </div>
               </div>
             </Card>
