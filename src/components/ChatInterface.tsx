@@ -63,16 +63,13 @@ export function ChatInterface({
     }
   }, [initialSessionId]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom with smooth animation when messages change
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, currentAssistantMessage]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [messages, currentAssistantMessage]);
 
@@ -414,7 +411,7 @@ export function ChatInterface({
       </div>
 
       <ScrollArea className="flex-1 p-6 relative z-10" ref={scrollRef}>
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-4 pb-4">
           {messages.length === 0 && !currentAssistantMessage && (
             <div className="flex items-center justify-center h-full py-20">
               <div className="text-center space-y-4 animate-fade-in">
