@@ -164,13 +164,13 @@ export function AppSidebar({
         </SidebarGroup>
 
         <SidebarGroup>
-          <div className="flex items-center justify-between px-3">
+          <div className="flex items-center justify-between pl-0 pr-3">
             <button
               type="button"
               className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition"
               onClick={() => setIsChatListCollapsed((prev) => !prev)}
             >
-              <SidebarGroupLabel className="m-0">Chats</SidebarGroupLabel>
+              <SidebarGroupLabel className="m-0 pl-1 pr-0">Chats</SidebarGroupLabel>
               <ChevronDown
                 className={cn(
                   "h-4 w-4 transition-transform",

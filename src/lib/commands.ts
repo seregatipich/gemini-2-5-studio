@@ -1,3 +1,8 @@
+export interface CommandOptions {
+  useWebSearch?: boolean;
+  [key: string]: unknown;
+}
+
 export interface Command {
   name: string;
   execute: (prompt: string) => CommandResult;
@@ -5,7 +10,7 @@ export interface Command {
 
 export interface CommandResult {
   cleanedPrompt: string;
-  options: Record<string, any>;
+  options: CommandOptions;
 }
 
 export class CommandParser {

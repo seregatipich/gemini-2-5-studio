@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import { Copy, Check, FileText } from "lucide-react";
 import {
   memo,
+  type ReactNode,
   useEffect,
   useMemo,
   useState,
@@ -17,8 +18,16 @@ interface MessageContentProps {
   attachments?: string[];
 }
 
+type SyntaxHighlighterComponentProps = {
+  children?: ReactNode;
+  language?: string;
+  style?: Record<string, unknown>;
+  customStyle?: CSSProperties;
+  PreTag?: ComponentType | string;
+};
+
 type SyntaxResources = {
-  SyntaxHighlighter: ComponentType<any>;
+  SyntaxHighlighter: ComponentType<SyntaxHighlighterComponentProps>;
   syntaxTheme: Record<string, unknown>;
 };
 
@@ -32,7 +41,7 @@ function loadSyntaxResources(): Promise<SyntaxResources> {
         (module) => module.oneDark
       ),
     ]).then(([SyntaxHighlighter, syntaxTheme]) => ({
-      SyntaxHighlighter: SyntaxHighlighter as ComponentType<any>,
+      SyntaxHighlighter: SyntaxHighlighter as ComponentType<SyntaxHighlighterComponentProps>,
       syntaxTheme,
     }));
   }

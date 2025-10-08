@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { streamGeminiChat, Message } from "@/lib/gemini";
+import { streamGeminiChat, Message, type SafetySettings } from "@/lib/gemini";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageContent } from "@/components/MessageContent";
@@ -19,12 +19,7 @@ interface ChatInterfaceProps {
   systemInstruction?: string;
   urlContext?: string;
   thinkingBudget?: number;
-  safetySettings?: {
-    harassment: string;
-    hateSpeech: string;
-    sexuallyExplicit: string;
-    dangerousContent: string;
-  };
+  safetySettings?: SafetySettings;
   sessionId?: string | null;
   onSessionCreated?: (sessionId: string) => void;
 }
@@ -223,9 +218,9 @@ export function ChatInterface({
     }
 
     // Convert files to base64 and upload to storage
-    let attachmentUrls: string[] = [];
-    let filePaths: string[] = [];
-    let fileNames: string[] = [];
+    const attachmentUrls: string[] = [];
+    const filePaths: string[] = [];
+    const fileNames: string[] = [];
     if (attachedFiles.length > 0) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -419,7 +414,7 @@ export function ChatInterface({
         </div>
 
         <ScrollArea className="h-full">
-          <div className="max-w-4xl mx-auto space-y-4 py-6 px-6">
+          <div className="max-w-4xl mx-auto space-y-6 py-6 px-6">
             {messages.length === 0 && !currentAssistantMessage && (
               <div className="flex items-center justify-center h-full py-20">
                 <div className="text-center space-y-4 animate-fade-in">
@@ -447,19 +442,22 @@ export function ChatInterface({
             )}
 
             {messages.map((message, index) => (
-              <Card
+              <div
                 key={index}
                 className={cn(
-                  "p-4 animate-scale-in hover-lift transition-smooth",
-                  message.role === "user"
-                    ? "bg-primary/5 border-primary/20 ml-12"
-                    : "bg-card mr-12"
+                  "flex w-full animate-scale-in",
+                  message.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
-                <div className="flex gap-3">
+                <div
+                  className={cn(
+                    "flex items-start gap-3 max-w-[min(85%,620px)]",
+                    message.role === "user" && "flex-row-reverse"
+                  )}
+                >
                   <div
                     className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-medium",
                       message.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-gradient-accent text-white"
@@ -467,33 +465,40 @@ export function ChatInterface({
                   >
                     {message.role === "user" ? "U" : "AI"}
                   </div>
-                  <div className="flex-1">
+                  <Card
+                    className={cn(
+                      "border px-5 py-4 rounded-2xl shadow-sm",
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground border-transparent"
+                        : "bg-card/90 border-border"
+                    )}
+                  >
                     <MessageContent content={message.content} attachments={message.attachments} />
-                  </div>
+                  </Card>
                 </div>
-              </Card>
+              </div>
             ))}
 
             {currentAssistantMessage && (
-              <Card className="p-4 animate-scale-in mr-12 transition-smooth">
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center text-white">
+              <div className="flex w-full justify-start animate-scale-in">
+                <div className="flex items-start gap-3 max-w-[min(85%,620px)]">
+                  <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center text-white text-sm font-medium">
                     AI
                   </div>
-                  <div className="flex-1">
+                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
                     <MessageContent content={currentAssistantMessage} />
-                  </div>
+                  </Card>
                 </div>
-              </Card>
+              </div>
             )}
 
             {isStreaming && !currentAssistantMessage && (
-              <Card className="p-4 animate-fade-in mr-12">
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center animate-pulse-glow">
+              <div className="flex w-full justify-start animate-fade-in">
+                <div className="flex items-start gap-3 max-w-[min(85%,620px)]">
+                  <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center animate-pulse-glow">
                     <span className="text-white text-sm">AI</span>
                   </div>
-                  <div className="flex-1">
+                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
                     {isThinking ? (
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
@@ -510,25 +515,27 @@ export function ChatInterface({
                         <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
                     )}
-                  </div>
+                  </Card>
                 </div>
-              </Card>
+              </div>
             )}
 
             {thoughtSummaries.length > 0 && (
-              <Card className="p-4 animate-fade-in mr-12 bg-primary/5 border-primary/20">
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+              <div className="flex w-full justify-start animate-fade-in">
+                <div className="flex items-start gap-3 max-w-[min(85%,620px)]">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                     <span className="text-primary text-sm">💭</span>
                   </div>
-                  <div className="flex-1 space-y-2">
-                    <p className="text-sm font-medium text-primary">Thought Summaries</p>
-                    {thoughtSummaries.map((summary, i) => (
-                      <p key={i} className="text-xs text-muted-foreground">{summary}</p>
-                    ))}
-                  </div>
+                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-primary/5 border-primary/20">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-primary">Thought Summaries</p>
+                      {thoughtSummaries.map((summary, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">{summary}</p>
+                      ))}
+                    </div>
+                  </Card>
                 </div>
-              </Card>
+              </div>
             )}
 
             <div ref={bottomRef} className="h-0" />

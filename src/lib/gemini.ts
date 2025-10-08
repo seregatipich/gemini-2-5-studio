@@ -1,3 +1,5 @@
+export type SafetyLevel = "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+
 export interface Message {
   role: "user" | "assistant";
   content: string;
@@ -10,6 +12,13 @@ export interface TokenMetadata {
   totalTokens: number;
 }
 
+export interface SafetySettings {
+  harassment: SafetyLevel;
+  hateSpeech: SafetyLevel;
+  sexuallyExplicit: SafetyLevel;
+  dangerousContent: SafetyLevel;
+}
+
 export interface GeminiStreamOptions {
   messages: Message[];
   model?: string;
@@ -18,13 +27,8 @@ export interface GeminiStreamOptions {
   useWebSearch?: boolean;
   systemInstruction?: string;
   urlContext?: string;
+  safetySettings?: SafetySettings;
   thinkingBudget?: number;
-  safetySettings?: {
-    harassment: string;
-    hateSpeech: string;
-    sexuallyExplicit: string;
-    dangerousContent: string;
-  };
   onToken: (token: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
@@ -43,8 +47,8 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
     useWebSearch = false,
     systemInstruction,
     urlContext,
-    thinkingBudget,
     safetySettings,
+    thinkingBudget,
     onToken,
     onComplete,
     onError,
@@ -63,16 +67,16 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ 
-          messages, 
-          model, 
-          temperature, 
-          jsonMode, 
-          useWebSearch, 
+        body: JSON.stringify({
+          messages,
+          model,
+          temperature,
+          jsonMode,
+          useWebSearch,
+          thinkingBudget,
           systemInstruction,
           urlContext,
-          thinkingBudget,
-          safetySettings
+          safetySettings,
         }),
         signal,
       }
@@ -100,36 +104,43 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      buffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const jsonStr = line.slice(6);
-          try {
-            const data = JSON.parse(jsonStr);
-            if (data.text) {
-              onToken(data.text);
-            }
-            if (data.metadata && onMetadata) {
-              onMetadata(data.metadata);
-            }
-            if (data.thinking !== undefined && onThinking) {
-              onThinking(data.thinking);
-            }
-            if (data.thoughtSummary && onThoughtSummary) {
-              onThoughtSummary(data.thoughtSummary);
-            }
-          } catch (e) {
-            console.error("Error parsing SSE data:", e);
+        if (!line.startsWith("data: ")) {
+          continue;
+        }
+
+        const jsonStr = line.slice(6);
+        if (!jsonStr) {
+          continue;
+        }
+
+        try {
+          const data = JSON.parse(jsonStr);
+          if (data.text) {
+            onToken(data.text);
           }
+          if (data.metadata && onMetadata) {
+            onMetadata(data.metadata);
+          }
+          if (typeof data.thinking === "boolean" && onThinking) {
+            onThinking(data.thinking);
+          }
+          if (data.thoughtSummary && onThoughtSummary) {
+            onThoughtSummary(data.thoughtSummary);
+          }
+        } catch (e) {
+          console.error("Error parsing SSE data:", e);
         }
       }
     }
   } catch (error) {
     if (error instanceof Error) {
       onError(error);
-    } else {
-      onError(new Error("Unknown error occurred"));
+      return;
     }
+
+    onError(new Error("Unknown error occurred"));
   }
 }

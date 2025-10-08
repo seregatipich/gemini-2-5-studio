@@ -57,8 +57,9 @@ export function Auth() {
         if (error) throw error;
         toast.success("Welcome back!");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Authentication failed");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Authentication failed";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

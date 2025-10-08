@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -23,6 +22,15 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+type SafetyLevel = "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+
+interface SafetySettingsConfig {
+  harassment: SafetyLevel;
+  hateSpeech: SafetyLevel;
+  sexuallyExplicit: SafetyLevel;
+  dangerousContent: SafetyLevel;
+}
+
 interface TopBarProps {
   model: string;
   setModel: (model: string) => void;
@@ -44,13 +52,8 @@ interface TopBarProps {
     min: number;
     max: number;
   };
-  safetySettings: {
-    harassment: string;
-    hateSpeech: string;
-    sexuallyExplicit: string;
-    dangerousContent: string;
-  };
-  setSafetySettings: (settings: any) => void;
+  safetySettings: SafetySettingsConfig;
+  setSafetySettings: (settings: SafetySettingsConfig) => void;
 }
 
 export function TopBar({ 
@@ -76,9 +79,7 @@ export function TopBar({
 }: TopBarProps) {
   const sliderStep = Math.max(1, Math.round((thinkingBudgetRange.max - thinkingBudgetRange.min) / 100));
 
-  const formattedThinkingBudget = thinkingBudgetEnabled
-    ? `${thinkingBudget} tokens`
-    : `${thinkingBudgetRange.max} tokens (max)`;
+  const formattedThinkingBudget = `${thinkingBudget} tokens`;
 
   return (
     <header className="sticky top-0 z-50 h-14 border-b border-border flex items-center justify-between px-4 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
@@ -104,14 +105,14 @@ export function TopBar({
               <SlidersHorizontal className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
+          <SheetContent className="p-0">
+            <SheetHeader className="px-6 pt-6 pb-4">
               <SheetTitle>Model Settings</SheetTitle>
               <SheetDescription>
                 Configure parameters for your AI model
               </SheetDescription>
             </SheetHeader>
-            <ScrollArea className="h-[calc(100vh-10rem)] pr-4">
+            <ScrollArea className="h-[calc(100vh-10rem)] px-6">
             <div className="space-y-6 py-6">
               <div className="space-y-2">
                 <Label>Temperature: {temperature.toFixed(2)}</Label>
@@ -157,11 +158,11 @@ export function TopBar({
 
               <div className="space-y-2">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-semibold">Set thinking budget</Label>
                       <p className="text-xs text-muted-foreground">
-                        Range {thinkingBudgetRange.min.toLocaleString()} - {thinkingBudgetRange.max.toLocaleString()} tokens
+                        {thinkingBudgetRange.min.toLocaleString()} - {thinkingBudgetRange.max.toLocaleString()} tokens
                       </p>
                     </div>
                     <Switch
@@ -170,24 +171,25 @@ export function TopBar({
                       aria-label="Toggle custom thinking budget"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Thinking Budget: {formattedThinkingBudget}</Label>
-                    <Slider
-                      value={[thinkingBudget]}
-                      onValueChange={(value) => setThinkingBudget(value[0])}
-                      min={thinkingBudgetRange.min}
-                      max={thinkingBudgetRange.max}
-                      step={sliderStep}
-                      disabled={!thinkingBudgetEnabled}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Tokens allocated for model reasoning (thinking models only)
-                    </p>
-                  </div>
+                  {thinkingBudgetEnabled && (
+                    <div className="space-y-2">
+                      <Label>Thinking Budget: {formattedThinkingBudget}</Label>
+                      <Slider
+                        value={[thinkingBudget]}
+                        onValueChange={(value) => setThinkingBudget(value[0])}
+                        min={thinkingBudgetRange.min}
+                        max={thinkingBudgetRange.max}
+                        step={sliderStep}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Tokens allocated for model reasoning (thinking models only)
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 border rounded-lg bg-accent/5">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 p-4 border rounded-lg bg-accent/5">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-semibold">JSON Mode</Label>
                   <p className="text-xs text-muted-foreground">
@@ -200,7 +202,7 @@ export function TopBar({
                 />
               </div>
               
-              <div className="flex items-center justify-between p-4 border rounded-lg bg-accent/5">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 p-4 border rounded-lg bg-accent/5">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-semibold">Web Search</Label>
                   <p className="text-xs text-muted-foreground">
@@ -218,9 +220,11 @@ export function TopBar({
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Harassment</Label>
-                    <Select 
-                      value={safetySettings.harassment} 
-                      onValueChange={(value) => setSafetySettings({...safetySettings, harassment: value})}
+                    <Select
+                      value={safetySettings.harassment}
+                      onValueChange={(value: SafetyLevel) =>
+                        setSafetySettings({ ...safetySettings, harassment: value })
+                      }
                     >
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -235,9 +239,11 @@ export function TopBar({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Hate Speech</Label>
-                    <Select 
-                      value={safetySettings.hateSpeech} 
-                      onValueChange={(value) => setSafetySettings({...safetySettings, hateSpeech: value})}
+                    <Select
+                      value={safetySettings.hateSpeech}
+                      onValueChange={(value: SafetyLevel) =>
+                        setSafetySettings({ ...safetySettings, hateSpeech: value })
+                      }
                     >
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -252,9 +258,11 @@ export function TopBar({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Sexually Explicit</Label>
-                    <Select 
-                      value={safetySettings.sexuallyExplicit} 
-                      onValueChange={(value) => setSafetySettings({...safetySettings, sexuallyExplicit: value})}
+                    <Select
+                      value={safetySettings.sexuallyExplicit}
+                      onValueChange={(value: SafetyLevel) =>
+                        setSafetySettings({ ...safetySettings, sexuallyExplicit: value })
+                      }
                     >
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -269,9 +277,11 @@ export function TopBar({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Dangerous Content</Label>
-                    <Select 
-                      value={safetySettings.dangerousContent} 
-                      onValueChange={(value) => setSafetySettings({...safetySettings, dangerousContent: value})}
+                    <Select
+                      value={safetySettings.dangerousContent}
+                      onValueChange={(value: SafetyLevel) =>
+                        setSafetySettings({ ...safetySettings, dangerousContent: value })
+                      }
                     >
                       <SelectTrigger className="h-8">
                         <SelectValue />

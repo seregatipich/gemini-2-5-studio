@@ -2,6 +2,44 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/generative-ai@0.21.0";
 
+type ChatRole = "user" | "assistant";
+
+interface ChatMessage {
+  role: ChatRole;
+  content: string;
+  attachments?: string[];
+}
+
+type SafetyLevel = "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
+
+interface SafetySettingsPayload {
+  harassment: SafetyLevel;
+  hateSpeech: SafetyLevel;
+  sexuallyExplicit: SafetyLevel;
+  dangerousContent: SafetyLevel;
+}
+
+interface ChatRequestPayload {
+  messages?: ChatMessage[];
+  model?: string;
+  temperature?: number;
+  jsonMode?: boolean;
+  useWebSearch?: boolean;
+  systemInstruction?: string;
+  urlContext?: string;
+  thinkingBudget?: number;
+  safetySettings?: SafetySettingsPayload;
+}
+
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+interface GeminiMessage {
+  role: "model" | "user";
+  parts: GeminiPart[];
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -13,22 +51,25 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      messages, 
-      model = "gemini-2.5-flash", 
-      temperature = 0.7, 
-      jsonMode = false, 
-      useWebSearch = false, 
+    const {
+      messages: incomingMessages,
+      model = "gemini-2.5-flash",
+      temperature = 0.7,
+      jsonMode = false,
+      useWebSearch = false,
       systemInstruction,
       urlContext,
       thinkingBudget = 2000,
-      safetySettings = {
-        harassment: "BLOCK_MEDIUM_AND_ABOVE",
-        hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
-        sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
-        dangerousContent: "BLOCK_MEDIUM_AND_ABOVE"
-      }
-    } = await req.json();
+      safetySettings: incomingSafety,
+    } = (await req.json()) as ChatRequestPayload;
+
+    const messages: ChatMessage[] = incomingMessages ?? [];
+    const safetySettings: SafetySettingsPayload = {
+      harassment: incomingSafety?.harassment ?? "BLOCK_MEDIUM_AND_ABOVE",
+      hateSpeech: incomingSafety?.hateSpeech ?? "BLOCK_MEDIUM_AND_ABOVE",
+      sexuallyExplicit: incomingSafety?.sexuallyExplicit ?? "BLOCK_MEDIUM_AND_ABOVE",
+      dangerousContent: incomingSafety?.dangerousContent ?? "BLOCK_MEDIUM_AND_ABOVE",
+    };
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
     if (!GEMINI_API_KEY) {
@@ -40,7 +81,10 @@ serve(async (req) => {
     // Fetch and parse URL context if provided
     let urlContextText = '';
     if (urlContext && urlContext.trim()) {
-      const urls = urlContext.split('\n').map((u: string) => u.trim()).filter((u: string) => u);
+      const urls = urlContext
+        .split('\n')
+        .map((u) => u.trim())
+        .filter((u): u is string => u.length > 0);
       console.log(`Fetching ${urls.length} URLs for context...`);
       
       for (const url of urls) {
@@ -76,7 +120,11 @@ serve(async (req) => {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     
     // Build generation config
-    const generationConfig: any = {
+    const generationConfig: {
+      temperature: number;
+      maxOutputTokens: number;
+      responseMimeType?: string;
+    } = {
       temperature,
       maxOutputTokens: 8192,
     };
@@ -89,7 +137,7 @@ serve(async (req) => {
     }
 
     // Build tools config
-    const tools: any[] = [];
+    const tools: Array<{ googleSearch: Record<string, never> }> = [];
     if (useWebSearch) {
       tools.push({
         googleSearch: {}
@@ -97,11 +145,11 @@ serve(async (req) => {
     }
 
     // Map safety setting strings to thresholds
-    const thresholdMap: Record<string, any> = {
-      'BLOCK_NONE': HarmBlockThreshold.BLOCK_NONE,
-      'BLOCK_ONLY_HIGH': HarmBlockThreshold.BLOCK_ONLY_HIGH,
-      'BLOCK_MEDIUM_AND_ABOVE': HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      'BLOCK_LOW_AND_ABOVE': HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
+    const thresholdMap: Record<SafetyLevel, HarmBlockThreshold> = {
+      BLOCK_NONE: HarmBlockThreshold.BLOCK_NONE,
+      BLOCK_ONLY_HIGH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      BLOCK_MEDIUM_AND_ABOVE: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      BLOCK_LOW_AND_ABOVE: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
     };
 
     const geminiModel = genAI.getGenerativeModel({ 
@@ -130,8 +178,8 @@ serve(async (req) => {
     });
 
     // Transform messages to Gemini format
-    const contents = messages.map((msg: any, index: number) => {
-      const parts = [];
+    const contents: GeminiMessage[] = messages.map((msg, index) => {
+      const parts: GeminiPart[] = [];
       
       // Add URL context to first user message if available
       if (index === 0 && msg.role === 'user' && urlContextText) {
@@ -164,7 +212,7 @@ serve(async (req) => {
 
       return {
         role: msg.role === 'assistant' ? 'model' : 'user',
-        parts
+        parts,
       };
     });
 
