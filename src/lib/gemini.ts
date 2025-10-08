@@ -4,15 +4,23 @@ export interface Message {
   attachments?: string[];
 }
 
+export interface TokenMetadata {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
 export interface GeminiStreamOptions {
   messages: Message[];
   model?: string;
   temperature?: number;
   jsonMode?: boolean;
   useWebSearch?: boolean;
+  systemInstruction?: string;
   onToken: (token: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
+  onMetadata?: (metadata: TokenMetadata) => void;
   signal?: AbortSignal;
 }
 
@@ -23,9 +31,11 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
     temperature = 0.7,
     jsonMode = false,
     useWebSearch = false,
+    systemInstruction,
     onToken,
     onComplete,
     onError,
+    onMetadata,
     signal,
   } = options;
 
@@ -38,7 +48,7 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages, model, temperature, jsonMode, useWebSearch }),
+        body: JSON.stringify({ messages, model, temperature, jsonMode, useWebSearch, systemInstruction }),
         signal,
       }
     );
@@ -74,6 +84,9 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
             const data = JSON.parse(jsonStr);
             if (data.text) {
               onToken(data.text);
+            }
+            if (data.metadata && onMetadata) {
+              onMetadata(data.metadata);
             }
           } catch (e) {
             console.error("Error parsing SSE data:", e);

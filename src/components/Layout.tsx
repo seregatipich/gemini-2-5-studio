@@ -9,6 +9,7 @@ interface LayoutProps {
     temperature: number;
     jsonMode: boolean;
     useWebSearch: boolean;
+    systemInstruction: string;
     sessionId: string | null;
     onSessionCreated: (sessionId: string) => void;
     onNewSession: () => void;
@@ -20,6 +21,7 @@ export function Layout({ children }: LayoutProps) {
   const [temperature, setTemperature] = useState(0.7);
   const [jsonMode, setJsonMode] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [systemInstruction, setSystemInstruction] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
 
@@ -42,6 +44,11 @@ export function Layout({ children }: LayoutProps) {
     setSessionKey(prev => prev + 1);
   };
 
+  const handleSettingsChange = (settings: { temperature: number; systemInstruction: string }) => {
+    setTemperature(settings.temperature);
+    setSystemInstruction(settings.systemInstruction);
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen flex w-full bg-background">
@@ -49,6 +56,7 @@ export function Layout({ children }: LayoutProps) {
           onNewSession={handleNewSession}
           activeSessionId={sessionId}
           onSessionSelect={handleSessionSelect}
+          onSettingsChange={handleSettingsChange}
         />
         <div className="flex-1 flex flex-col">
           <TopBar
@@ -67,6 +75,7 @@ export function Layout({ children }: LayoutProps) {
               temperature, 
               jsonMode,
               useWebSearch,
+              systemInstruction,
               sessionId,
               onSessionCreated: handleSessionCreated,
               onNewSession: handleNewSession 

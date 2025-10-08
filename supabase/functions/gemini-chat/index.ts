@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false, useWebSearch = false } = await req.json();
+    const { messages, model = "gemini-2.5-flash", temperature = 0.7, jsonMode = false, useWebSearch = false, systemInstruction } = await req.json();
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
     if (!GEMINI_API_KEY) {
@@ -55,6 +55,7 @@ serve(async (req) => {
     const geminiModel = genAI.getGenerativeModel({ 
       model: apiModel,
       generationConfig,
+      systemInstruction: systemInstruction || undefined,
       tools: tools.length > 0 ? tools : undefined,
       safetySettings: [
         {
@@ -126,6 +127,7 @@ serve(async (req) => {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          let totalTokens = 0;
           for await (const chunk of result.stream) {
             const text = chunk.text();
             if (text) {
@@ -133,6 +135,22 @@ serve(async (req) => {
               controller.enqueue(new TextEncoder().encode(sseData));
             }
           }
+          
+          // Get usage metadata after stream completes
+          const response = await result.response;
+          const usageMetadata = response.usageMetadata;
+          
+          if (usageMetadata) {
+            const metadataEvent = `data: ${JSON.stringify({ 
+              metadata: {
+                promptTokens: usageMetadata.promptTokenCount,
+                completionTokens: usageMetadata.candidatesTokenCount,
+                totalTokens: usageMetadata.totalTokenCount
+              }
+            })}\n\n`;
+            controller.enqueue(new TextEncoder().encode(metadataEvent));
+          }
+          
           controller.close();
         } catch (error) {
           console.error('Stream error:', error);

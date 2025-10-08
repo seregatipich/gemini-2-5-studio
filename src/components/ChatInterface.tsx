@@ -16,6 +16,7 @@ interface ChatInterfaceProps {
   temperature?: number;
   jsonMode?: boolean;
   useWebSearch?: boolean;
+  systemInstruction?: string;
   sessionId?: string | null;
   onSessionCreated?: (sessionId: string) => void;
 }
@@ -25,6 +26,7 @@ export function ChatInterface({
   temperature = 0.7, 
   jsonMode = false,
   useWebSearch = false,
+  systemInstruction,
   sessionId: initialSessionId,
   onSessionCreated,
   onNewSession 
@@ -36,6 +38,7 @@ export function ChatInterface({
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [tokenMetadata, setTokenMetadata] = useState<{ promptTokens: number; completionTokens: number; totalTokens: number } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -295,10 +298,14 @@ export function ChatInterface({
       temperature,
       jsonMode,
       useWebSearch,
+      systemInstruction,
       signal: abortControllerRef.current.signal,
       onToken: (token) => {
         assistantResponse += token;
         setCurrentAssistantMessage(assistantResponse);
+      },
+      onMetadata: (metadata) => {
+        setTokenMetadata(metadata);
       },
       onComplete: async () => {
         setMessages((prev) => [
@@ -466,6 +473,15 @@ export function ChatInterface({
       </ScrollArea>
 
       <div className="border-t border-border bg-card/80 backdrop-blur-sm relative z-10">
+        {tokenMetadata && (
+          <div className="max-w-4xl mx-auto px-4 pt-2">
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <span>Prompt: {tokenMetadata.promptTokens} tokens</span>
+              <span>Response: {tokenMetadata.completionTokens} tokens</span>
+              <span>Total: {tokenMetadata.totalTokens} tokens</span>
+            </div>
+          </div>
+        )}
         {attachedFiles.length > 0 && (
           <div className="max-w-4xl mx-auto px-4 pt-3">
             <div className="flex flex-wrap gap-2">
