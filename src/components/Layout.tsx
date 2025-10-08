@@ -68,7 +68,7 @@ export function Layout({ children }: LayoutProps) {
           activeSessionId={sessionId}
           onSessionSelect={handleSessionSelect}
         />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
         <TopBar 
           model={model} 
           setModel={setModel} 
@@ -87,7 +87,7 @@ export function Layout({ children }: LayoutProps) {
           safetySettings={safetySettings}
           setSafetySettings={setSafetySettings}
         />
-          <main className="flex-1 overflow-hidden relative" key={sessionKey}>
+          <main className="flex-1 min-h-0" key={sessionKey}>
         {children({ 
           model, 
           temperature, 
