@@ -81,11 +81,9 @@ serve(async (req) => {
       maxOutputTokens: 8192,
     };
 
-    // Add thinking budget for thinking models
-    if (thinkingBudget > 0) {
-      generationConfig.thinkingTokens = thinkingBudget;
-    }
-
+    // Note: thinkingTokens is not yet supported in Gemini API
+    // Keeping thinkingBudget for future use
+    
     if (jsonMode) {
       generationConfig.responseMimeType = "application/json";
     }
@@ -171,8 +169,14 @@ serve(async (req) => {
     });
 
     // Start streaming chat
+    // Ensure history starts with user message (Gemini requirement)
+    const history = contents.slice(0, -1);
+    const validHistory = history.length > 0 && history[0].role === 'user' 
+      ? history 
+      : [];
+    
     const chat = geminiModel.startChat({
-      history: contents.slice(0, -1),
+      history: validHistory,
       generationConfig,
     });
 
