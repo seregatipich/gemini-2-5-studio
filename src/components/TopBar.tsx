@@ -65,7 +65,7 @@ export function TopBar({
   setSafetySettings
 }: TopBarProps) {
   return (
-    <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
+    <header className="sticky top-0 z-50 h-14 border-b border-border flex items-center justify-between px-4 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex items-center gap-2">
         <SidebarTrigger />
       </div>

@@ -87,7 +87,7 @@ export function Layout({ children }: LayoutProps) {
           safetySettings={safetySettings}
           setSafetySettings={setSafetySettings}
         />
-          <main className="flex-1 overflow-hidden" key={sessionKey}>
+          <main className="flex-1 overflow-hidden relative" key={sessionKey}>
         {children({ 
           model, 
           temperature, 
