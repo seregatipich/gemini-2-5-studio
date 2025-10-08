@@ -450,7 +450,7 @@ export function ChatInterface({
               <Card
                 key={index}
                 className={cn(
-                  "p-4 animate-fade-in",
+                  "p-4 animate-scale-in hover-lift transition-smooth",
                   message.role === "user"
                     ? "bg-primary/5 border-primary/20 ml-12"
                     : "bg-card mr-12"
@@ -475,7 +475,7 @@ export function ChatInterface({
             ))}
 
             {currentAssistantMessage && (
-              <Card className="p-4 animate-fade-in mr-12">
+              <Card className="p-4 animate-scale-in mr-12 transition-smooth">
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center text-white">
                     AI
@@ -585,7 +585,7 @@ export function ChatInterface({
             size="icon"
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming}
-            className="h-[60px] w-[60px] shrink-0"
+            className="h-[60px] w-[60px] shrink-0 hover-lift transition-smooth"
           >
             <Paperclip className="h-5 w-5" />
           </Button>
@@ -607,7 +607,7 @@ export function ChatInterface({
               onClick={handleStop}
               size="icon"
               variant="destructive"
-              className="h-[60px] w-[60px] shrink-0"
+              className="h-[60px] w-[60px] shrink-0 hover-lift transition-smooth"
             >
               <Square className="h-5 w-5" />
             </Button>
@@ -615,7 +615,7 @@ export function ChatInterface({
             <Button
               onClick={handleSend}
               size="icon"
-              className="h-[60px] w-[60px] shrink-0 bg-gradient-primary hover:opacity-90"
+              className="h-[60px] w-[60px] shrink-0 bg-gradient-primary hover:opacity-90 hover-lift transition-smooth"
               disabled={!input.trim() && attachedFiles.length === 0}
             >
               <Send className="h-5 w-5" />
