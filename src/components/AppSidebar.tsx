@@ -1,4 +1,4 @@
-import { MessageSquare, Settings, Plus, Trash2, LogOut } from "lucide-react";
+import { MessageSquare, Settings, Plus, Trash2, LogOut, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Sidebar,
@@ -51,6 +51,7 @@ export function AppSidebar({
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,30 +158,48 @@ export function AppSidebar({
               onClick={onNewSession}
             >
               <Plus className="h-4 w-4 mr-2" />
-              New Session
+              New Chat
             </Button>
           </div>
         </SidebarGroup>
 
         <SidebarGroup>
           <div className="flex items-center justify-between px-3">
-            <SidebarGroupLabel>Sessions</SidebarGroupLabel>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition"
+              onClick={() => setIsChatListCollapsed((prev) => !prev)}
+            >
+              <SidebarGroupLabel className="m-0">Chats</SidebarGroupLabel>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  isChatListCollapsed && "-rotate-90"
+                )}
+              />
+            </button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  className="h-6 w-6 opacity-70 hover:opacity-100"
+                  className={cn(
+                    "h-6 w-6 transition-all duration-200 bg-transparent text-muted-foreground",
+                    isChatListCollapsed
+                      ? "opacity-0 pointer-events-none -translate-y-2 scale-95"
+                      : "opacity-80 translate-y-0 scale-100 hover:opacity-100 hover:bg-gradient-primary hover:text-white hover:shadow-glow"
+                  )}
                   disabled={sessions.length === 0}
+                  aria-hidden={isChatListCollapsed}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete all sessions?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete all chats?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. All your chat sessions and messages will be permanently deleted.
+                    This action cannot be undone. All your chats and messages will be permanently deleted.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -190,16 +209,17 @@ export function AppSidebar({
               </AlertDialogContent>
             </AlertDialog>
           </div>
-          <SidebarGroupContent>
+          <SidebarGroupContent className={cn(isChatListCollapsed && "hidden")}
+          >
             <ScrollArea className="h-[calc(100vh-300px)]">
               <SidebarMenu>
                 {isLoading ? (
                   <div className="px-3 py-4 text-sm text-muted-foreground">
-                    Loading sessions...
+                    Loading chats...
                   </div>
                 ) : sessions.length === 0 ? (
                   <div className="px-3 py-4 text-sm text-muted-foreground">
-                    No sessions yet
+                    No chats yet
                   </div>
                 ) : (
                   sessions.map((session) => (
@@ -208,7 +228,9 @@ export function AppSidebar({
                         isActive={activeSessionId === session.id}
                         onClick={() => onSessionSelect?.(session.id)}
                         className={cn(
-                          session.name !== "New Session" && "animate-fade-in"
+                          session.name !== "New Session" &&
+                            session.name !== "New Chat" &&
+                            "animate-fade-in"
                         )}
                       >
                         <MessageSquare className="h-4 w-4 shrink-0" />
