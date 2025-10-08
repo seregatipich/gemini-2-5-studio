@@ -17,6 +17,14 @@ interface ChatInterfaceProps {
   jsonMode?: boolean;
   useWebSearch?: boolean;
   systemInstruction?: string;
+  urlContext?: string;
+  thinkingBudget?: number;
+  safetySettings?: {
+    harassment: string;
+    hateSpeech: string;
+    sexuallyExplicit: string;
+    dangerousContent: string;
+  };
   sessionId?: string | null;
   onSessionCreated?: (sessionId: string) => void;
 }
@@ -27,6 +35,9 @@ export function ChatInterface({
   jsonMode = false,
   useWebSearch = false,
   systemInstruction,
+  urlContext,
+  thinkingBudget = 2000,
+  safetySettings,
   sessionId: initialSessionId,
   onSessionCreated,
   onNewSession 
@@ -39,6 +50,8 @@ export function ChatInterface({
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [tokenMetadata, setTokenMetadata] = useState<{ promptTokens: number; completionTokens: number; totalTokens: number } | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
+  const [thoughtSummaries, setThoughtSummaries] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -299,6 +312,9 @@ export function ChatInterface({
       jsonMode,
       useWebSearch,
       systemInstruction,
+      urlContext,
+      thinkingBudget,
+      safetySettings,
       signal: abortControllerRef.current.signal,
       onToken: (token) => {
         assistantResponse += token;
@@ -306,6 +322,12 @@ export function ChatInterface({
       },
       onMetadata: (metadata) => {
         setTokenMetadata(metadata);
+      },
+      onThinking: (thinking) => {
+        setIsThinking(thinking);
+      },
+      onThoughtSummary: (summary) => {
+        setThoughtSummaries((prev) => [...prev, summary]);
       },
       onComplete: async () => {
         setMessages((prev) => [
@@ -460,11 +482,38 @@ export function ChatInterface({
                   <span className="text-white text-sm">AI</span>
                 </div>
                 <div className="flex-1">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
+                  {isThinking ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                      <span className="text-sm text-muted-foreground italic">Thinking...</span>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {thoughtSummaries.length > 0 && (
+            <Card className="p-4 animate-fade-in mr-12 bg-primary/5 border-primary/20">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <span className="text-primary text-sm">💭</span>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm font-medium text-primary">Thought Summaries</p>
+                  {thoughtSummaries.map((summary, i) => (
+                    <p key={i} className="text-xs text-muted-foreground">{summary}</p>
+                  ))}
                 </div>
               </div>
             </Card>

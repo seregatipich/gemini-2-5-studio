@@ -33,6 +33,17 @@ interface TopBarProps {
   setUseWebSearch: (useWebSearch: boolean) => void;
   systemInstruction: string;
   setSystemInstruction: (systemInstruction: string) => void;
+  urlContext: string;
+  setUrlContext: (urlContext: string) => void;
+  thinkingBudget: number;
+  setThinkingBudget: (thinkingBudget: number) => void;
+  safetySettings: {
+    harassment: string;
+    hateSpeech: string;
+    sexuallyExplicit: string;
+    dangerousContent: string;
+  };
+  setSafetySettings: (settings: any) => void;
 }
 
 export function TopBar({ 
@@ -45,7 +56,13 @@ export function TopBar({
   useWebSearch,
   setUseWebSearch,
   systemInstruction,
-  setSystemInstruction
+  setSystemInstruction,
+  urlContext,
+  setUrlContext,
+  thinkingBudget,
+  setThinkingBudget,
+  safetySettings,
+  setSafetySettings
 }: TopBarProps) {
   return (
     <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
@@ -107,6 +124,34 @@ export function TopBar({
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="urlContext">URL Context</Label>
+                <Textarea
+                  id="urlContext"
+                  placeholder="Enter URLs (one per line) for the model to reference..."
+                  value={urlContext}
+                  onChange={(e) => setUrlContext(e.target.value)}
+                  className="min-h-[80px] resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Model will fetch and parse content from these URLs
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Thinking Budget: {thinkingBudget} tokens</Label>
+                <Slider
+                  value={[thinkingBudget]}
+                  onValueChange={(value) => setThinkingBudget(value[0])}
+                  min={0}
+                  max={10000}
+                  step={100}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tokens allocated for model reasoning (thinking models only)
+                </p>
+              </div>
+
               <div className="flex items-center justify-between p-4 border rounded-lg bg-accent/5">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-semibold">JSON Mode</Label>
@@ -131,6 +176,80 @@ export function TopBar({
                   checked={useWebSearch} 
                   onCheckedChange={setUseWebSearch}
                 />
+              </div>
+
+              <div className="space-y-4 p-4 border rounded-lg bg-accent/5">
+                <Label className="text-sm font-semibold">Safety Filters</Label>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Harassment</Label>
+                    <Select 
+                      value={safetySettings.harassment} 
+                      onValueChange={(value) => setSafetySettings({...safetySettings, harassment: value})}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BLOCK_NONE">None</SelectItem>
+                        <SelectItem value="BLOCK_ONLY_HIGH">Only High</SelectItem>
+                        <SelectItem value="BLOCK_MEDIUM_AND_ABOVE">Medium+</SelectItem>
+                        <SelectItem value="BLOCK_LOW_AND_ABOVE">Low+</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Hate Speech</Label>
+                    <Select 
+                      value={safetySettings.hateSpeech} 
+                      onValueChange={(value) => setSafetySettings({...safetySettings, hateSpeech: value})}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BLOCK_NONE">None</SelectItem>
+                        <SelectItem value="BLOCK_ONLY_HIGH">Only High</SelectItem>
+                        <SelectItem value="BLOCK_MEDIUM_AND_ABOVE">Medium+</SelectItem>
+                        <SelectItem value="BLOCK_LOW_AND_ABOVE">Low+</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Sexually Explicit</Label>
+                    <Select 
+                      value={safetySettings.sexuallyExplicit} 
+                      onValueChange={(value) => setSafetySettings({...safetySettings, sexuallyExplicit: value})}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BLOCK_NONE">None</SelectItem>
+                        <SelectItem value="BLOCK_ONLY_HIGH">Only High</SelectItem>
+                        <SelectItem value="BLOCK_MEDIUM_AND_ABOVE">Medium+</SelectItem>
+                        <SelectItem value="BLOCK_LOW_AND_ABOVE">Low+</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Dangerous Content</Label>
+                    <Select 
+                      value={safetySettings.dangerousContent} 
+                      onValueChange={(value) => setSafetySettings({...safetySettings, dangerousContent: value})}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BLOCK_NONE">None</SelectItem>
+                        <SelectItem value="BLOCK_ONLY_HIGH">Only High</SelectItem>
+                        <SelectItem value="BLOCK_MEDIUM_AND_ABOVE">Medium+</SelectItem>
+                        <SelectItem value="BLOCK_LOW_AND_ABOVE">Low+</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
           </SheetContent>

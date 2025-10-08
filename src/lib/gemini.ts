@@ -17,10 +17,20 @@ export interface GeminiStreamOptions {
   jsonMode?: boolean;
   useWebSearch?: boolean;
   systemInstruction?: string;
+  urlContext?: string;
+  thinkingBudget?: number;
+  safetySettings?: {
+    harassment: string;
+    hateSpeech: string;
+    sexuallyExplicit: string;
+    dangerousContent: string;
+  };
   onToken: (token: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
   onMetadata?: (metadata: TokenMetadata) => void;
+  onThinking?: (isThinking: boolean) => void;
+  onThoughtSummary?: (summary: string) => void;
   signal?: AbortSignal;
 }
 
@@ -32,10 +42,15 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
     jsonMode = false,
     useWebSearch = false,
     systemInstruction,
+    urlContext,
+    thinkingBudget,
+    safetySettings,
     onToken,
     onComplete,
     onError,
     onMetadata,
+    onThinking,
+    onThoughtSummary,
     signal,
   } = options;
 
@@ -48,7 +63,17 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages, model, temperature, jsonMode, useWebSearch, systemInstruction }),
+        body: JSON.stringify({ 
+          messages, 
+          model, 
+          temperature, 
+          jsonMode, 
+          useWebSearch, 
+          systemInstruction,
+          urlContext,
+          thinkingBudget,
+          safetySettings
+        }),
         signal,
       }
     );
@@ -87,6 +112,12 @@ export async function streamGeminiChat(options: GeminiStreamOptions) {
             }
             if (data.metadata && onMetadata) {
               onMetadata(data.metadata);
+            }
+            if (data.thinking !== undefined && onThinking) {
+              onThinking(data.thinking);
+            }
+            if (data.thoughtSummary && onThoughtSummary) {
+              onThoughtSummary(data.thoughtSummary);
             }
           } catch (e) {
             console.error("Error parsing SSE data:", e);

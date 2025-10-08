@@ -10,6 +10,14 @@ interface LayoutProps {
     jsonMode: boolean;
     useWebSearch: boolean;
     systemInstruction: string;
+    urlContext: string;
+    thinkingBudget: number;
+    safetySettings: {
+      harassment: string;
+      hateSpeech: string;
+      sexuallyExplicit: string;
+      dangerousContent: string;
+    };
     sessionId: string | null;
     onSessionCreated: (sessionId: string) => void;
     onNewSession: () => void;
@@ -22,6 +30,14 @@ export function Layout({ children }: LayoutProps) {
   const [jsonMode, setJsonMode] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [systemInstruction, setSystemInstruction] = useState("");
+  const [urlContext, setUrlContext] = useState("");
+  const [thinkingBudget, setThinkingBudget] = useState(2000);
+  const [safetySettings, setSafetySettings] = useState({
+    harassment: "BLOCK_MEDIUM_AND_ABOVE",
+    hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
+    sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
+    dangerousContent: "BLOCK_MEDIUM_AND_ABOVE"
+  });
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
 
@@ -53,29 +69,38 @@ export function Layout({ children }: LayoutProps) {
           onSessionSelect={handleSessionSelect}
         />
         <div className="flex-1 flex flex-col">
-          <TopBar
-            model={model}
-            setModel={setModel}
-            temperature={temperature}
-            setTemperature={setTemperature}
-            jsonMode={jsonMode}
-            setJsonMode={setJsonMode}
-            useWebSearch={useWebSearch}
-            setUseWebSearch={setUseWebSearch}
-            systemInstruction={systemInstruction}
-            setSystemInstruction={setSystemInstruction}
-          />
+        <TopBar 
+          model={model} 
+          setModel={setModel} 
+          temperature={temperature}
+          setTemperature={setTemperature}
+          jsonMode={jsonMode}
+          setJsonMode={setJsonMode}
+          useWebSearch={useWebSearch}
+          setUseWebSearch={setUseWebSearch}
+          systemInstruction={systemInstruction}
+          setSystemInstruction={setSystemInstruction}
+          urlContext={urlContext}
+          setUrlContext={setUrlContext}
+          thinkingBudget={thinkingBudget}
+          setThinkingBudget={setThinkingBudget}
+          safetySettings={safetySettings}
+          setSafetySettings={setSafetySettings}
+        />
           <main className="flex-1 overflow-hidden" key={sessionKey}>
-            {children({ 
-              model, 
-              temperature, 
-              jsonMode,
-              useWebSearch,
-              systemInstruction,
-              sessionId,
-              onSessionCreated: handleSessionCreated,
-              onNewSession: handleNewSession 
-            })}
+        {children({ 
+          model, 
+          temperature, 
+          jsonMode,
+          useWebSearch,
+          systemInstruction,
+          urlContext,
+          thinkingBudget,
+          safetySettings,
+          sessionId,
+          onSessionCreated: handleSessionCreated,
+          onNewSession: handleNewSession 
+        })}
           </main>
         </div>
       </div>
