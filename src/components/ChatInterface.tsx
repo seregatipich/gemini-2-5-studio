@@ -53,7 +53,8 @@ export function ChatInterface({
   const [isThinking, setIsThinking] = useState(false);
   const [thoughtSummaries, setThoughtSummaries] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const isAutoScrollInitialized = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load session messages on mount
@@ -63,13 +64,17 @@ export function ChatInterface({
     }
   }, [initialSessionId]);
 
-  // Auto-scroll to bottom with smooth animation when messages change
+  // Auto-scroll to the latest message with smooth animation
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    if (!bottomRef.current) return;
+
+    bottomRef.current.scrollIntoView({
+      behavior: isAutoScrollInitialized.current ? "smooth" : "auto",
+      block: "end",
+    });
+
+    if (!isAutoScrollInitialized.current) {
+      isAutoScrollInitialized.current = true;
     }
   }, [messages, currentAssistantMessage]);
 
@@ -376,6 +381,7 @@ export function ChatInterface({
     setInput("");
     setAttachedFiles([]);
     setSessionId(null);
+    isAutoScrollInitialized.current = false;
     onNewSession?.();
   };
 
@@ -403,129 +409,133 @@ export function ChatInterface({
   };
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="relative flex flex-col h-full overflow-hidden">
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
       </div>
 
-      <ScrollArea className="flex-1 p-6 relative z-10" ref={scrollRef}>
-        <div className="max-w-4xl mx-auto space-y-4 pb-4">
-          {messages.length === 0 && !currentAssistantMessage && (
-            <div className="flex items-center justify-center h-full py-20">
-              <div className="text-center space-y-4 animate-fade-in">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-primary mx-auto flex items-center justify-center shadow-glow">
-                  <svg
-                    className="w-8 h-8 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+      <div className="flex-1 overflow-hidden relative z-10">
+        <ScrollArea className="h-full">
+          <div className="max-w-4xl mx-auto space-y-6 pt-6 pb-28 px-6">
+            {messages.length === 0 && !currentAssistantMessage && (
+              <div className="flex items-center justify-center h-full py-20">
+                <div className="text-center space-y-4 animate-fade-in">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-primary mx-auto flex items-center justify-center shadow-glow">
+                    <svg
+                      className="w-8 h-8 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-semibold">Welcome to Gemini 2.5 Studio</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    Start a conversation with Google's most advanced AI models. Ask anything, explore ideas, or build something amazing.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {messages.map((message, index) => (
+              <Card
+                key={index}
+                className={cn(
+                  "p-4 animate-fade-in",
+                  message.role === "user"
+                    ? "bg-primary/5 border-primary/20 ml-12"
+                    : "bg-card mr-12"
+                )}
+              >
+                <div className="flex gap-3">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-gradient-accent text-white"
+                    )}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
+                    {message.role === "user" ? "U" : "AI"}
+                  </div>
+                  <div className="flex-1">
+                    <MessageContent content={message.content} attachments={message.attachments} />
+                  </div>
                 </div>
-                <h2 className="text-2xl font-semibold">Welcome to Gemini 2.5 Studio</h2>
-                <p className="text-muted-foreground max-w-md">
-                  Start a conversation with Google's most advanced AI models. Ask anything, explore ideas, or build something amazing.
-                </p>
-              </div>
-            </div>
-          )}
+              </Card>
+            ))}
 
-          {messages.map((message, index) => (
-            <Card
-              key={index}
-              className={cn(
-                "p-4 animate-fade-in",
-                message.role === "user"
-                  ? "bg-primary/5 border-primary/20 ml-12"
-                  : "bg-card mr-12"
-              )}
-            >
-              <div className="flex gap-3">
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-gradient-accent text-white"
-                  )}
-                >
-                  {message.role === "user" ? "U" : "AI"}
+            {currentAssistantMessage && (
+              <Card className="p-4 animate-fade-in mr-12">
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center text-white">
+                    AI
+                  </div>
+                  <div className="flex-1">
+                    <MessageContent content={currentAssistantMessage} />
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <MessageContent content={message.content} attachments={message.attachments} />
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            )}
 
-          {currentAssistantMessage && (
-            <Card className="p-4 animate-fade-in mr-12">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center text-white">
-                  AI
-                </div>
-                <div className="flex-1">
-                  <MessageContent content={currentAssistantMessage} />
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {isStreaming && !currentAssistantMessage && (
-            <Card className="p-4 animate-fade-in mr-12">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center animate-pulse-glow">
-                  <span className="text-white text-sm">AI</span>
-                </div>
-                <div className="flex-1">
-                  {isThinking ? (
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+            {isStreaming && !currentAssistantMessage && (
+              <Card className="p-4 animate-fade-in mr-12">
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center animate-pulse-glow">
+                    <span className="text-white text-sm">AI</span>
+                  </div>
+                  <div className="flex-1">
+                    {isThinking ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                        <span className="text-sm text-muted-foreground italic">Thinking...</span>
                       </div>
-                      <span className="text-sm text-muted-foreground italic">Thinking...</span>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Card>
-          )}
+              </Card>
+            )}
 
-          {thoughtSummaries.length > 0 && (
-            <Card className="p-4 animate-fade-in mr-12 bg-primary/5 border-primary/20">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                  <span className="text-primary text-sm">💭</span>
+            {thoughtSummaries.length > 0 && (
+              <Card className="p-4 animate-fade-in mr-12 bg-primary/5 border-primary/20">
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <span className="text-primary text-sm">💭</span>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <p className="text-sm font-medium text-primary">Thought Summaries</p>
+                    {thoughtSummaries.map((summary, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{summary}</p>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm font-medium text-primary">Thought Summaries</p>
-                  {thoughtSummaries.map((summary, i) => (
-                    <p key={i} className="text-xs text-muted-foreground">{summary}</p>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          )}
-        </div>
-      </ScrollArea>
+              </Card>
+            )}
 
-      <div className="border-t border-border bg-card/80 backdrop-blur-sm relative z-10">
+            <div ref={bottomRef} className="h-0" />
+          </div>
+        </ScrollArea>
+      </div>
+
+      <div className="border-t border-border bg-card/90 backdrop-blur-sm relative z-20">
         {tokenMetadata && (
           <div className="max-w-4xl mx-auto px-4 pt-2">
             <div className="flex gap-4 text-xs text-muted-foreground">
