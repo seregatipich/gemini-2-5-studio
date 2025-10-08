@@ -537,7 +537,7 @@ export function ChatInterface({
       </div>
 
       {/* Input area - fixed at bottom */}
-      <div className="border-t border-border bg-card/95 backdrop-blur-sm shrink-0">
+      <div className="sticky bottom-0 border-t border-border bg-card/95 backdrop-blur-sm shrink-0 z-50">
         {tokenMetadata && (
           <div className="max-w-4xl mx-auto px-4 pt-2">
             <div className="flex gap-4 text-xs text-muted-foreground">
