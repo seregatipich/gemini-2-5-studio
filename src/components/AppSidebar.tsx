@@ -32,9 +32,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 
 interface Session {
@@ -46,18 +43,14 @@ interface Session {
 export function AppSidebar({ 
   onNewSession, 
   activeSessionId, 
-  onSessionSelect,
-  onSettingsChange
+  onSessionSelect
 }: { 
   onNewSession?: () => void;
   activeSessionId?: string | null;
   onSessionSelect?: (sessionId: string) => void;
-  onSettingsChange?: (settings: { temperature: number; systemInstruction: string }) => void;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [temperature, setTemperature] = useState(0.7);
-  const [systemInstruction, setSystemInstruction] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -239,49 +232,12 @@ export function AppSidebar({
                 <span>Settings</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-96">
+            <PopoverContent className="w-80">
               <div className="space-y-4">
-                <h4 className="font-medium text-sm">Settings</h4>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="temperature" className="text-sm">
-                    Temperature: {temperature.toFixed(2)}
-                  </Label>
-                  <Slider
-                    id="temperature"
-                    min={0}
-                    max={2}
-                    step={0.1}
-                    value={[temperature]}
-                    onValueChange={([value]) => {
-                      setTemperature(value);
-                      onSettingsChange?.({ temperature: value, systemInstruction });
-                    }}
-                    className="w-full"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Controls randomness: lower is more focused, higher is more creative
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="systemInstruction" className="text-sm">
-                    System Instructions
-                  </Label>
-                  <Textarea
-                    id="systemInstruction"
-                    placeholder="Define AI behavior and personality..."
-                    value={systemInstruction}
-                    onChange={(e) => {
-                      setSystemInstruction(e.target.value);
-                      onSettingsChange?.({ temperature, systemInstruction: e.target.value });
-                    }}
-                    className="min-h-[100px] resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Custom instructions for the AI assistant
-                  </p>
-                </div>
+                <h4 className="font-medium text-sm">Account Settings</h4>
+                <p className="text-sm text-muted-foreground">
+                  Account settings coming soon...
+                </p>
               </div>
             </PopoverContent>
           </Popover>

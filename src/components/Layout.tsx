@@ -44,11 +44,6 @@ export function Layout({ children }: LayoutProps) {
     setSessionKey(prev => prev + 1);
   };
 
-  const handleSettingsChange = (settings: { temperature: number; systemInstruction: string }) => {
-    setTemperature(settings.temperature);
-    setSystemInstruction(settings.systemInstruction);
-  };
-
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen flex w-full bg-background">
@@ -56,7 +51,6 @@ export function Layout({ children }: LayoutProps) {
           onNewSession={handleNewSession}
           activeSessionId={sessionId}
           onSessionSelect={handleSessionSelect}
-          onSettingsChange={handleSettingsChange}
         />
         <div className="flex-1 flex flex-col">
           <TopBar
@@ -68,6 +62,8 @@ export function Layout({ children }: LayoutProps) {
             setJsonMode={setJsonMode}
             useWebSearch={useWebSearch}
             setUseWebSearch={setUseWebSearch}
+            systemInstruction={systemInstruction}
+            setSystemInstruction={setSystemInstruction}
           />
           <main className="flex-1 overflow-hidden" key={sessionKey}>
             {children({ 
