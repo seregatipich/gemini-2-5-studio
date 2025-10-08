@@ -40,7 +40,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [model, setModel] = useState(DEFAULT_MODEL);
-  const [temperature, setTemperature] = useState(0.7);
+  const [temperature, setTemperature] = useState(1);
   const [jsonMode, setJsonMode] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [systemInstruction, setSystemInstruction] = useState("");
@@ -50,10 +50,10 @@ export function Layout({ children }: LayoutProps) {
     () => getThinkingBudgetRange(DEFAULT_MODEL).max
   );
   const [safetySettings, setSafetySettings] = useState({
-    harassment: "BLOCK_MEDIUM_AND_ABOVE",
-    hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
-    sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
-    dangerousContent: "BLOCK_MEDIUM_AND_ABOVE"
+    harassment: "BLOCK_NONE",
+    hateSpeech: "BLOCK_NONE",
+    sexuallyExplicit: "BLOCK_NONE",
+    dangerousContent: "BLOCK_NONE"
   });
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
