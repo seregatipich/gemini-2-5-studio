@@ -409,16 +409,17 @@ export function ChatInterface({
   };
 
   return (
-    <div className="relative flex flex-col h-full overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-      </div>
+    <div className="flex flex-col h-full">
+      {/* Messages area - scrollable */}
+      <div className="flex-1 overflow-hidden relative">
+        {/* Animated background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+        </div>
 
-      <div className="flex-1 overflow-hidden relative z-10">
         <ScrollArea className="h-full">
-          <div className="max-w-4xl mx-auto space-y-6 pt-6 pb-28 px-6">
+          <div className="max-w-4xl mx-auto space-y-4 py-6 px-6">
             {messages.length === 0 && !currentAssistantMessage && (
               <div className="flex items-center justify-center h-full py-20">
                 <div className="text-center space-y-4 animate-fade-in">
@@ -535,7 +536,8 @@ export function ChatInterface({
         </ScrollArea>
       </div>
 
-      <div className="border-t border-border bg-card/90 backdrop-blur-sm relative z-20">
+      {/* Input area - fixed at bottom */}
+      <div className="border-t border-border bg-card/95 backdrop-blur-sm shrink-0">
         {tokenMetadata && (
           <div className="max-w-4xl mx-auto px-4 pt-2">
             <div className="flex gap-4 text-xs text-muted-foreground">
