@@ -3,6 +3,20 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
 
+type ThinkingBudgetRange = {
+  min: number;
+  max: number;
+};
+
+const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_THINKING_BUDGET_RANGE: ThinkingBudgetRange = { min: 0, max: 10000 };
+const GOOGLE_THINKING_BUDGET_RANGE: ThinkingBudgetRange = { min: 128, max: 32768 };
+
+const getThinkingBudgetRange = (model: string): ThinkingBudgetRange =>
+  model.toLowerCase().includes("gemini")
+    ? GOOGLE_THINKING_BUDGET_RANGE
+    : DEFAULT_THINKING_BUDGET_RANGE;
+
 interface LayoutProps {
   children: (props: {
     model: string;
@@ -25,13 +39,16 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState(DEFAULT_MODEL);
   const [temperature, setTemperature] = useState(0.7);
   const [jsonMode, setJsonMode] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [systemInstruction, setSystemInstruction] = useState("");
   const [urlContext, setUrlContext] = useState("");
-  const [thinkingBudget, setThinkingBudget] = useState(2000);
+  const [thinkingBudgetEnabled, setThinkingBudgetEnabled] = useState(false);
+  const [thinkingBudget, setThinkingBudget] = useState(
+    () => getThinkingBudgetRange(DEFAULT_MODEL).max
+  );
   const [safetySettings, setSafetySettings] = useState({
     harassment: "BLOCK_MEDIUM_AND_ABOVE",
     hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
@@ -41,10 +58,28 @@ export function Layout({ children }: LayoutProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
 
+  const currentThinkingBudgetRange = getThinkingBudgetRange(model);
+
   // Set dark theme by default
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
+
+  useEffect(() => {
+    const { min, max } = getThinkingBudgetRange(model);
+    setThinkingBudget((previous) => {
+      if (!thinkingBudgetEnabled) {
+        return max;
+      }
+      if (previous < min) {
+        return min;
+      }
+      if (previous > max) {
+        return max;
+      }
+      return previous;
+    });
+  }, [model, thinkingBudgetEnabled]);
 
   const handleNewSession = () => {
     setSessionId(null);
@@ -59,6 +94,10 @@ export function Layout({ children }: LayoutProps) {
     setSessionId(selectedSessionId);
     setSessionKey(prev => prev + 1);
   };
+
+  const effectiveThinkingBudget = thinkingBudgetEnabled
+    ? thinkingBudget
+    : currentThinkingBudgetRange.max;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -84,6 +123,9 @@ export function Layout({ children }: LayoutProps) {
           setUrlContext={setUrlContext}
           thinkingBudget={thinkingBudget}
           setThinkingBudget={setThinkingBudget}
+          thinkingBudgetEnabled={thinkingBudgetEnabled}
+          setThinkingBudgetEnabled={setThinkingBudgetEnabled}
+          thinkingBudgetRange={currentThinkingBudgetRange}
           safetySettings={safetySettings}
           setSafetySettings={setSafetySettings}
         />
@@ -95,7 +137,7 @@ export function Layout({ children }: LayoutProps) {
           useWebSearch,
           systemInstruction,
           urlContext,
-          thinkingBudget,
+          thinkingBudget: effectiveThinkingBudget,
           safetySettings,
           sessionId,
           onSessionCreated: handleSessionCreated,

@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface TopBarProps {
   model: string;
@@ -37,6 +38,12 @@ interface TopBarProps {
   setUrlContext: (urlContext: string) => void;
   thinkingBudget: number;
   setThinkingBudget: (thinkingBudget: number) => void;
+  thinkingBudgetEnabled: boolean;
+  setThinkingBudgetEnabled: (enabled: boolean) => void;
+  thinkingBudgetRange: {
+    min: number;
+    max: number;
+  };
   safetySettings: {
     harassment: string;
     hateSpeech: string;
@@ -61,9 +68,18 @@ export function TopBar({
   setUrlContext,
   thinkingBudget,
   setThinkingBudget,
+  thinkingBudgetEnabled,
+  setThinkingBudgetEnabled,
+  thinkingBudgetRange,
   safetySettings,
   setSafetySettings
 }: TopBarProps) {
+  const sliderStep = Math.max(1, Math.round((thinkingBudgetRange.max - thinkingBudgetRange.min) / 100));
+
+  const formattedThinkingBudget = thinkingBudgetEnabled
+    ? `${thinkingBudget} tokens`
+    : `${thinkingBudgetRange.max} tokens (max)`;
+
   return (
     <header className="sticky top-0 z-50 h-14 border-b border-border flex items-center justify-between px-4 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex items-center gap-2">
@@ -95,6 +111,7 @@ export function TopBar({
                 Configure parameters for your AI model
               </SheetDescription>
             </SheetHeader>
+            <ScrollArea className="h-[calc(100vh-10rem)] pr-4">
             <div className="space-y-6 py-6">
               <div className="space-y-2">
                 <Label>Temperature: {temperature.toFixed(2)}</Label>
@@ -139,17 +156,35 @@ export function TopBar({
               </div>
 
               <div className="space-y-2">
-                <Label>Thinking Budget: {thinkingBudget} tokens</Label>
-                <Slider
-                  value={[thinkingBudget]}
-                  onValueChange={(value) => setThinkingBudget(value[0])}
-                  min={0}
-                  max={10000}
-                  step={100}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Tokens allocated for model reasoning (thinking models only)
-                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-semibold">Set thinking budget</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Range {thinkingBudgetRange.min.toLocaleString()} - {thinkingBudgetRange.max.toLocaleString()} tokens
+                      </p>
+                    </div>
+                    <Switch
+                      checked={thinkingBudgetEnabled}
+                      onCheckedChange={setThinkingBudgetEnabled}
+                      aria-label="Toggle custom thinking budget"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Thinking Budget: {formattedThinkingBudget}</Label>
+                    <Slider
+                      value={[thinkingBudget]}
+                      onValueChange={(value) => setThinkingBudget(value[0])}
+                      min={thinkingBudgetRange.min}
+                      max={thinkingBudgetRange.max}
+                      step={sliderStep}
+                      disabled={!thinkingBudgetEnabled}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tokens allocated for model reasoning (thinking models only)
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between p-4 border rounded-lg bg-accent/5">
@@ -252,6 +287,7 @@ export function TopBar({
                 </div>
               </div>
             </div>
+            </ScrollArea>
           </SheetContent>
         </Sheet>
       </div>
