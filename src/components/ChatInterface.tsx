@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, lazy, Suspense, useCallback } from "react";
 import { Send, Square, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,8 +8,21 @@ import { cn } from "@/lib/utils";
 import { streamGeminiChat, Message, type SafetySettings } from "@/lib/gemini";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageContent } from "@/components/MessageContent";
 import { commandParser } from "@/lib/commands";
+
+const MessageContent = lazy(() =>
+  import("@/components/MessageContent").then((module) => ({
+    default: module.MessageContent,
+  }))
+);
+
+const MessageContentFallback = () => (
+  <div className="space-y-3">
+    <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+    <div className="h-3 w-48 rounded bg-muted/70 animate-pulse" />
+    <div className="h-3 w-40 rounded bg-muted/60 animate-pulse" />
+  </div>
+);
 
 interface ChatInterfaceProps {
   model?: string;
@@ -48,9 +61,93 @@ export function ChatInterface({
   const [isThinking, setIsThinking] = useState(false);
   const [thoughtSummaries, setThoughtSummaries] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const isAutoScrollInitialized = useRef(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const streamingAssistantRef = useRef<HTMLDivElement | null>(null);
+  const lastAssistantRef = useRef<HTMLDivElement | null>(null);
+  const isUserNearBottomRef = useRef(true);
+  const shouldFocusAssistantRef = useRef(false);
+  const userWasNearBottomOnSendRef = useRef(true);
+  const prevAssistantLengthRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isStreamingRef = useRef(false);
+  const autoScrollDisabledRef = useRef(false);
+  const rafQueuedRef = useRef(false);
+  const anchorEpsilonPx = 1; // tighter tolerance for top alignment
+  const anchoredRef = useRef(false);
+  const anchorTopOffsetRef = useRef(0);
+  const alignFramesRemainingRef = useRef(0);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
+  const bottomThreshold = 120;
+
+  const updateNearBottom = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const { scrollTop, scrollHeight, clientHeight } = viewport;
+    const distance = scrollHeight - (scrollTop + clientHeight);
+    const threshold = Math.max(bottomThreshold, clientHeight * 0.25);
+    const wasNearBottom = isUserNearBottomRef.current;
+    isUserNearBottomRef.current = distance <= threshold;
+    if (isStreamingRef.current && distance > bottomThreshold && wasNearBottom) {
+      autoScrollDisabledRef.current = true;
+    }
+    if (isStreamingRef.current && distance > bottomThreshold) {
+      anchoredRef.current = false;
+    }
+  }, []);
+
+  const scrollAssistantIntoView = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      if (rafQueuedRef.current) return;
+      rafQueuedRef.current = true;
+      requestAnimationFrame(() => {
+        rafQueuedRef.current = false;
+        const viewport = viewportRef.current;
+        const target = streamingAssistantRef.current ?? lastAssistantRef.current;
+        if (!viewport || !target) return;
+
+        const viewportRect = viewport.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const offset = targetRect.top - viewportRect.top;
+
+        if (Math.abs(offset) > anchorEpsilonPx) {
+          if (behavior === "smooth") {
+            viewport.scrollTo({ top: viewport.scrollTop + offset, behavior: "smooth" });
+          } else {
+            viewport.scrollTop = viewport.scrollTop + offset;
+          }
+        }
+        updateNearBottom();
+      });
+    },
+    [updateNearBottom, anchorEpsilonPx],
+  );
+
+  const ensureAlignedNow = useCallback(() => {
+    const viewport = viewportRef.current;
+    const target = streamingAssistantRef.current ?? lastAssistantRef.current;
+    if (!viewport || !target) return true;
+    const vRect = viewport.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    const offset = tRect.top - vRect.top;
+    if (Math.abs(offset) > anchorEpsilonPx) {
+      viewport.scrollTop = viewport.scrollTop + offset;
+      return false;
+    }
+    return true;
+  }, [anchorEpsilonPx]);
+
+  const startAlignmentLoop = useCallback(() => {
+    alignFramesRemainingRef.current = 24; // ~400ms @60fps
+    const step = () => {
+      if (alignFramesRemainingRef.current <= 0) return;
+      const done = ensureAlignedNow();
+      alignFramesRemainingRef.current -= 1;
+      if (!done) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [ensureAlignedNow]);
 
   // Load session messages on mount
   useEffect(() => {
@@ -59,19 +156,87 @@ export function ChatInterface({
     }
   }, [initialSessionId]);
 
-  // Auto-scroll to the latest message with smooth animation
   useEffect(() => {
-    if (!bottomRef.current) return;
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
 
-    bottomRef.current.scrollIntoView({
-      behavior: isAutoScrollInitialized.current ? "smooth" : "auto",
-      block: "end",
-    });
+    if (!viewport) return;
 
-    if (!isAutoScrollInitialized.current) {
-      isAutoScrollInitialized.current = true;
+    viewportRef.current = viewport;
+    updateNearBottom();
+
+    viewport.addEventListener("scroll", updateNearBottom);
+    return () => viewport.removeEventListener("scroll", updateNearBottom);
+  }, [updateNearBottom]);
+
+  useEffect(() => {
+    updateNearBottom();
+  }, [messages.length, currentAssistantMessage.length, updateNearBottom]);
+
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
+  useLayoutEffect(() => {
+    const prevLength = prevAssistantLengthRef.current;
+    const currentLength = currentAssistantMessage.length;
+
+    if (currentLength > 0 && prevLength === 0) {
+      // Re-lock only if user is currently near the bottom when assistant starts streaming
+      updateNearBottom();
+      if (shouldFocusAssistantRef.current && isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
+        scrollAssistantIntoView("auto");
+        // Capture top offset anchor relative to viewport
+        requestAnimationFrame(() => {
+          const viewport = viewportRef.current;
+          const target = streamingAssistantRef.current ?? lastAssistantRef.current;
+          if (!viewport || !target) return;
+          const vRect = viewport.getBoundingClientRect();
+          const tRect = target.getBoundingClientRect();
+          anchorTopOffsetRef.current = tRect.top - vRect.top;
+          anchoredRef.current = true;
+        });
+        // Kick a short alignment loop to guarantee snap
+        startAlignmentLoop();
+      } else {
+        anchoredRef.current = false;
+      }
+      shouldFocusAssistantRef.current = false;
+      autoScrollDisabledRef.current = false;
     }
-  }, [messages, currentAssistantMessage]);
+
+    prevAssistantLengthRef.current = currentLength;
+  }, [currentAssistantMessage, scrollAssistantIntoView, updateNearBottom]);
+
+  // Follow growth with ResizeObserver while streaming
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const el = streamingAssistantRef.current;
+    if (!viewport || !el) return;
+
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+
+    const ro = new ResizeObserver(() => {
+      if (!anchoredRef.current || autoScrollDisabledRef.current) return;
+      const vRect = viewport.getBoundingClientRect();
+      const tRect = el.getBoundingClientRect();
+      const diff = (tRect.top - vRect.top) - anchorTopOffsetRef.current;
+      if (Math.abs(diff) > 0.5) {
+        viewport.scrollTop += diff;
+      }
+    });
+    ro.observe(el);
+    resizeObserverRef.current = ro;
+
+    return () => {
+      ro.disconnect();
+      if (resizeObserverRef.current === ro) resizeObserverRef.current = null;
+    };
+  }, [currentAssistantMessage]);
 
   const loadSession = async (id: string) => {
     setIsLoadingSession(true);
@@ -260,6 +425,11 @@ export function ChatInterface({
       }
     }
 
+    updateNearBottom();
+    userWasNearBottomOnSendRef.current = isUserNearBottomRef.current;
+    shouldFocusAssistantRef.current = true;
+    autoScrollDisabledRef.current = false;
+
     const userMessage: Message = { 
       role: "user", 
       content: cleanedPrompt || "Analyze the attached files",
@@ -323,6 +493,38 @@ export function ChatInterface({
       onToken: (token) => {
         assistantResponse += token;
         setCurrentAssistantMessage(assistantResponse);
+        const viewport = viewportRef.current;
+        const target = streamingAssistantRef.current ?? lastAssistantRef.current;
+        // If we haven't anchored yet but conditions are right, capture anchor on first token
+        if (
+          !anchoredRef.current &&
+          viewport &&
+          target &&
+          isUserNearBottomRef.current &&
+          !autoScrollDisabledRef.current
+        ) {
+          const vRect = viewport.getBoundingClientRect();
+          const tRect = target.getBoundingClientRect();
+          anchorTopOffsetRef.current = tRect.top - vRect.top;
+          anchoredRef.current = true;
+          ensureAlignedNow();
+          startAlignmentLoop();
+        } else if (
+          anchoredRef.current &&
+          viewport &&
+          target &&
+          !autoScrollDisabledRef.current
+        ) {
+          const vRect = viewport.getBoundingClientRect();
+          const tRect = target.getBoundingClientRect();
+          const diff = (tRect.top - vRect.top) - anchorTopOffsetRef.current;
+          if (Math.abs(diff) > 0.5) {
+            viewport.scrollTop += diff;
+          }
+        } else if (isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
+          // If we didn't capture an anchor (e.g., user near bottom mid-stream), gently align
+          scrollAssistantIntoView("auto");
+        }
       },
       onMetadata: (metadata) => {
         setTokenMetadata(metadata);
@@ -340,6 +542,9 @@ export function ChatInterface({
         ]);
         setCurrentAssistantMessage("");
         setIsStreaming(false);
+        shouldFocusAssistantRef.current = false;
+        autoScrollDisabledRef.current = false;
+        anchoredRef.current = false;
         abortControllerRef.current = null;
 
         // Save assistant message
@@ -357,6 +562,8 @@ export function ChatInterface({
         toast.error("Failed to get response from Gemini");
         setIsStreaming(false);
         setCurrentAssistantMessage("");
+        autoScrollDisabledRef.current = false;
+        anchoredRef.current = false;
         abortControllerRef.current = null;
       },
     });
@@ -376,7 +583,10 @@ export function ChatInterface({
     setInput("");
     setAttachedFiles([]);
     setSessionId(null);
-    isAutoScrollInitialized.current = false;
+    shouldFocusAssistantRef.current = false;
+    isUserNearBottomRef.current = true;
+    autoScrollDisabledRef.current = false;
+    anchoredRef.current = false;
     onNewSession?.();
   };
 
@@ -413,14 +623,14 @@ export function ChatInterface({
           <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
         </div>
 
-        <ScrollArea className="h-full">
+        <ScrollArea ref={scrollAreaRef} className="h-full">
           <div className="max-w-4xl mx-auto space-y-6 py-6 px-6">
             {messages.length === 0 && !currentAssistantMessage && (
-              <div className="flex items-center justify-center h-full py-20">
-                <div className="text-center space-y-4 animate-fade-in">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-primary mx-auto flex items-center justify-center shadow-glow">
+              <div className="flex min-h-[60vh] items-center justify-center py-20">
+                <div className="flex flex-col items-center text-center gap-5">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow animate-float">
                     <svg
-                      className="w-8 h-8 text-white"
+                      className="w-9 h-9 text-white animate-pulse"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -433,10 +643,12 @@ export function ChatInterface({
                       />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-semibold">Welcome to Gemini 2.5 Studio</h2>
-                  <p className="text-muted-foreground max-w-md">
-                    Start a conversation with Google's most advanced AI models. Ask anything, explore ideas, or build something amazing.
-                  </p>
+                  <div className="space-y-3 animate-chat-rise">
+                    <h2 className="text-3xl font-semibold">Welcome to Gemini 2.5 Studio</h2>
+                    <p className="text-muted-foreground max-w-md mx-auto">
+                      Start a conversation with Google's most advanced AI models. Ask anything, explore ideas, or build something amazing.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -472,8 +684,11 @@ export function ChatInterface({
                         ? "bg-primary text-primary-foreground border-transparent"
                         : "bg-card/90 border-border"
                     )}
+                    ref={message.role === "assistant" ? lastAssistantRef : undefined}
                   >
-                    <MessageContent content={message.content} attachments={message.attachments} />
+                    <Suspense fallback={<MessageContentFallback />}>
+                      <MessageContent content={message.content} attachments={message.attachments} />
+                    </Suspense>
                   </Card>
                 </div>
               </div>
@@ -485,8 +700,10 @@ export function ChatInterface({
                   <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center text-white text-sm font-medium">
                     AI
                   </div>
-                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
-                    <MessageContent content={currentAssistantMessage} />
+                  <Card ref={streamingAssistantRef} className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
+                    <Suspense fallback={<MessageContentFallback />}>
+                      <MessageContent content={currentAssistantMessage} />
+                    </Suspense>
                   </Card>
                 </div>
               </div>
@@ -538,37 +755,37 @@ export function ChatInterface({
               </div>
             )}
 
-            <div ref={bottomRef} className="h-0" />
           </div>
         </ScrollArea>
       </div>
 
-      {/* Input area - fixed at bottom */}
-      <div className="sticky bottom-0 border-t border-border bg-card/95 backdrop-blur-sm shrink-0 z-50">
-        {tokenMetadata && (
-          <div className="max-w-4xl mx-auto px-4 pt-2">
-            <div className="flex gap-4 text-xs text-muted-foreground">
+      {/* Sticky input area */}
+      <div className="sticky bottom-0 left-0 right-0 pointer-events-none">
+        <div className="max-w-4xl mx-auto w-full space-y-3 pointer-events-auto px-6 py-4">
+          {/* Usage counters hidden to avoid a visible lower bar */}
+          {false && tokenMetadata && (
+            <div className="flex justify-center gap-4 text-xs text-muted-foreground">
               <span>Prompt: {tokenMetadata.promptTokens} tokens</span>
               <span>Response: {tokenMetadata.completionTokens} tokens</span>
               <span>Total: {tokenMetadata.totalTokens} tokens</span>
             </div>
-          </div>
-        )}
-        {attachedFiles.length > 0 && (
-          <div className="max-w-4xl mx-auto px-4 pt-3">
-            <div className="flex flex-wrap gap-2">
+          )}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
               {attachedFiles.map((file, index) => (
-                <div key={index} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border">
+                <div key={index} className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 backdrop-blur">
                   {file.type.startsWith('image/') ? (
-                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                    <ImageIcon className="h-4 w-4 text-primary" />
                   ) : (
-                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <FileText className="h-4 w-4 text-primary" />
                   )}
-                  <span className="text-sm truncate max-w-[150px]">{file.name}</span>
+                  <span className="text-sm truncate max-w-[150px] text-primary-foreground/80">
+                    {file.name}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5"
+                    className="h-5 w-5 rounded-full text-primary hover:bg-primary/20"
                     onClick={() => removeFile(index)}
                   >
                     <X className="h-3 w-3" />
@@ -576,58 +793,60 @@ export function ChatInterface({
                 </div>
               ))}
             </div>
-          </div>
-        )}
-        <div className="max-w-4xl mx-auto p-4 flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.pdf,.txt,.md,.json,.csv"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming}
-            className="h-[60px] w-[60px] shrink-0 hover-lift transition-smooth"
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Ask anything..."
-            className="min-h-[60px] max-h-[200px] resize-none"
-            disabled={isStreaming}
-          />
-          {isStreaming ? (
-            <Button
-              onClick={handleStop}
-              size="icon"
-              variant="destructive"
-              className="h-[60px] w-[60px] shrink-0 hover-lift transition-smooth"
-            >
-              <Square className="h-5 w-5" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSend}
-              size="icon"
-              className="h-[60px] w-[60px] shrink-0 bg-gradient-primary hover:opacity-90 hover-lift transition-smooth"
-              disabled={!input.trim() && attachedFiles.length === 0}
-            >
-              <Send className="h-5 w-5" />
-            </Button>
           )}
+          <div className="relative">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.txt,.md,.json,.csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-3 py-1.5 shadow-glow backdrop-blur supports-[backdrop-filter]:backdrop-blur-md">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isStreaming}
+                className="h-10 w-10 shrink-0 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-smooth"
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask anything..."
+                className="min-h-[36px] max-h-[180px] flex-1 resize-none border-0 bg-transparent px-0 py-1 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                disabled={isStreaming}
+              />
+              {isStreaming ? (
+                <Button
+                  onClick={handleStop}
+                  size="icon"
+                  variant="destructive"
+                  className="h-10 w-10 shrink-0 rounded-full transition-smooth"
+                >
+                  <Square className="h-5 w-5" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSend}
+                  size="icon"
+                  className="h-10 w-10 shrink-0 rounded-full bg-gradient-primary text-primary-foreground shadow-glow transition-smooth hover:opacity-90"
+                  disabled={!input.trim() && attachedFiles.length === 0}
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

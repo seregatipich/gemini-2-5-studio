@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
 
@@ -107,7 +107,7 @@ export function Layout({ children }: LayoutProps) {
           activeSessionId={sessionId}
           onSessionSelect={handleSessionSelect}
         />
-        <div className="flex-1 flex flex-col min-h-0">
+        <LayoutContent>
         <TopBar 
           model={model} 
           setModel={setModel} 
@@ -144,8 +144,22 @@ export function Layout({ children }: LayoutProps) {
           onNewSession: handleNewSession 
         })}
           </main>
-        </div>
+        </LayoutContent>
       </div>
     </SidebarProvider>
+  );
+}
+
+function LayoutContent({ children }: { children: ReactNode }) {
+  const { state, isMobile } = useSidebar();
+  const marginLeft = !isMobile && state === "expanded" ? "var(--sidebar-width)" : "0px";
+
+  return (
+    <div
+      className="flex-1 flex flex-col min-h-0 transition-[margin-left] duration-300 ease-in-out"
+      style={!isMobile ? { marginLeft } : undefined}
+    >
+      {children}
+    </div>
   );
 }
