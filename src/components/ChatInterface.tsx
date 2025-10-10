@@ -183,10 +183,11 @@ export function ChatInterface({
     const currentLength = currentAssistantMessage.length;
 
     if (currentLength > 0 && prevLength === 0) {
-      // Re-lock only if user is currently near the bottom when assistant starts streaming
+      // When assistant starts responding, scroll to position it at the top
       updateNearBottom();
-      if (shouldFocusAssistantRef.current && isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
-        scrollAssistantIntoView("auto");
+      if (shouldFocusAssistantRef.current) {
+        // Always scroll to AI response when user sends a message
+        scrollAssistantIntoView("smooth");
         // Capture top offset anchor relative to viewport
         requestAnimationFrame(() => {
           const viewport = viewportRef.current;
@@ -199,6 +200,19 @@ export function ChatInterface({
         });
         // Kick a short alignment loop to guarantee snap
         startAlignmentLoop();
+      } else if (isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
+        // Re-lock only if user is near bottom when new assistant message starts
+        scrollAssistantIntoView("auto");
+        requestAnimationFrame(() => {
+          const viewport = viewportRef.current;
+          const target = streamingAssistantRef.current ?? lastAssistantRef.current;
+          if (!viewport || !target) return;
+          const vRect = viewport.getBoundingClientRect();
+          const tRect = target.getBoundingClientRect();
+          anchorTopOffsetRef.current = tRect.top - vRect.top;
+          anchoredRef.current = true;
+        });
+        startAlignmentLoop();
       } else {
         anchoredRef.current = false;
       }
@@ -207,7 +221,25 @@ export function ChatInterface({
     }
 
     prevAssistantLengthRef.current = currentLength;
-  }, [currentAssistantMessage, scrollAssistantIntoView, updateNearBottom]);
+  }, [currentAssistantMessage, scrollAssistantIntoView, updateNearBottom, startAlignmentLoop]);
+
+  // Scroll as soon as streaming begins (before first token) to position placeholder at top and capture anchor
+  useLayoutEffect(() => {
+    if (isStreaming && shouldFocusAssistantRef.current) {
+      scrollAssistantIntoView("auto");
+      const viewport = viewportRef.current;
+      const target = streamingAssistantRef.current;
+      if (viewport && target) {
+        const vRect = viewport.getBoundingClientRect();
+        const tRect = target.getBoundingClientRect();
+        anchorTopOffsetRef.current = tRect.top - vRect.top;
+        anchoredRef.current = true;
+        startAlignmentLoop();
+      }
+      // We will allow near-bottom logic to disable scrolling if user scrolls away later
+      autoScrollDisabledRef.current = false;
+    }
+  }, [isStreaming, scrollAssistantIntoView, startAlignmentLoop]);
 
   // Follow growth with ResizeObserver while streaming
   useEffect(() => {
@@ -425,9 +457,10 @@ export function ChatInterface({
       }
     }
 
+    // Mark that we should focus on assistant response regardless of scroll position
     updateNearBottom();
     userWasNearBottomOnSendRef.current = isUserNearBottomRef.current;
-    shouldFocusAssistantRef.current = true;
+    shouldFocusAssistantRef.current = true; // Always scroll to AI response when sending
     autoScrollDisabledRef.current = false;
 
     const userMessage: Message = { 
@@ -495,21 +528,9 @@ export function ChatInterface({
         setCurrentAssistantMessage(assistantResponse);
         const viewport = viewportRef.current;
         const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-        // If we haven't anchored yet but conditions are right, capture anchor on first token
+        
+        // Maintain anchor position during streaming if anchored
         if (
-          !anchoredRef.current &&
-          viewport &&
-          target &&
-          isUserNearBottomRef.current &&
-          !autoScrollDisabledRef.current
-        ) {
-          const vRect = viewport.getBoundingClientRect();
-          const tRect = target.getBoundingClientRect();
-          anchorTopOffsetRef.current = tRect.top - vRect.top;
-          anchoredRef.current = true;
-          ensureAlignedNow();
-          startAlignmentLoop();
-        } else if (
           anchoredRef.current &&
           viewport &&
           target &&
@@ -521,9 +542,6 @@ export function ChatInterface({
           if (Math.abs(diff) > 0.5) {
             viewport.scrollTop += diff;
           }
-        } else if (isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
-          // If we didn't capture an anchor (e.g., user near bottom mid-stream), gently align
-          scrollAssistantIntoView("auto");
         }
       },
       onMetadata: (metadata) => {
@@ -715,7 +733,8 @@ export function ChatInterface({
                   <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center animate-pulse-glow">
                     <span className="text-white text-sm">AI</span>
                   </div>
-                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
+                  {/* Placeholder card for streaming, attach ref so we can scroll immediately */}
+                  <Card ref={streamingAssistantRef} className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
                     {isThinking ? (
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
