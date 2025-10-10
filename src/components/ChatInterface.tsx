@@ -61,93 +61,21 @@ export function ChatInterface({
   const [isThinking, setIsThinking] = useState(false);
   const [thoughtSummaries, setThoughtSummaries] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const streamingAssistantRef = useRef<HTMLDivElement | null>(null);
-  const lastAssistantRef = useRef<HTMLDivElement | null>(null);
-  const isUserNearBottomRef = useRef(true);
-  const shouldFocusAssistantRef = useRef(false);
-  const userWasNearBottomOnSendRef = useRef(true);
-  const prevAssistantLengthRef = useRef(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isStreamingRef = useRef(false);
-  const autoScrollDisabledRef = useRef(false);
-  const rafQueuedRef = useRef(false);
-  const anchorEpsilonPx = 1; // tighter tolerance for top alignment
-  const anchoredRef = useRef(false);
-  const anchorTopOffsetRef = useRef(0);
-  const alignFramesRemainingRef = useRef(0);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const inputContainerRef = useRef<HTMLDivElement | null>(null);
+  const [inputHeight, setInputHeight] = useState(0);
 
-  const bottomThreshold = 120;
-
-  const updateNearBottom = useCallback(() => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const viewport = viewportRef.current;
-    if (!viewport) return;
-    const { scrollTop, scrollHeight, clientHeight } = viewport;
-    const distance = scrollHeight - (scrollTop + clientHeight);
-    const threshold = Math.max(bottomThreshold, clientHeight * 0.25);
-    const wasNearBottom = isUserNearBottomRef.current;
-    isUserNearBottomRef.current = distance <= threshold;
-    if (isStreamingRef.current && distance > bottomThreshold && wasNearBottom) {
-      autoScrollDisabledRef.current = true;
-    }
-    if (isStreamingRef.current && distance > bottomThreshold) {
-      anchoredRef.current = false;
+    if (viewport) {
+      if (behavior === "smooth") {
+        viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+      } else {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
     }
   }, []);
-
-  const scrollAssistantIntoView = useCallback(
-    (behavior: ScrollBehavior = "auto") => {
-      if (rafQueuedRef.current) return;
-      rafQueuedRef.current = true;
-      requestAnimationFrame(() => {
-        rafQueuedRef.current = false;
-        const viewport = viewportRef.current;
-        const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-        if (!viewport || !target) return;
-
-        const viewportRect = viewport.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const offset = targetRect.top - viewportRect.top;
-
-        if (Math.abs(offset) > anchorEpsilonPx) {
-          if (behavior === "smooth") {
-            viewport.scrollTo({ top: viewport.scrollTop + offset, behavior: "smooth" });
-          } else {
-            viewport.scrollTop = viewport.scrollTop + offset;
-          }
-        }
-        updateNearBottom();
-      });
-    },
-    [updateNearBottom, anchorEpsilonPx],
-  );
-
-  const ensureAlignedNow = useCallback(() => {
-    const viewport = viewportRef.current;
-    const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-    if (!viewport || !target) return true;
-    const vRect = viewport.getBoundingClientRect();
-    const tRect = target.getBoundingClientRect();
-    const offset = tRect.top - vRect.top;
-    if (Math.abs(offset) > anchorEpsilonPx) {
-      viewport.scrollTop = viewport.scrollTop + offset;
-      return false;
-    }
-    return true;
-  }, [anchorEpsilonPx]);
-
-  const startAlignmentLoop = useCallback(() => {
-    alignFramesRemainingRef.current = 24; // ~400ms @60fps
-    const step = () => {
-      if (alignFramesRemainingRef.current <= 0) return;
-      const done = ensureAlignedNow();
-      alignFramesRemainingRef.current -= 1;
-      if (!done) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [ensureAlignedNow]);
 
   // Load session messages on mount
   useEffect(() => {
@@ -156,119 +84,64 @@ export function ChatInterface({
     }
   }, [initialSessionId]);
 
+  // Scroll to bottom when viewport is ready
   useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]"
-    ) as HTMLDivElement | null;
-
-    if (!viewport) return;
-
-    viewportRef.current = viewport;
-    updateNearBottom();
-
-    viewport.addEventListener("scroll", updateNearBottom);
-    return () => viewport.removeEventListener("scroll", updateNearBottom);
-  }, [updateNearBottom]);
-
-  useEffect(() => {
-    updateNearBottom();
-  }, [messages.length, currentAssistantMessage.length, updateNearBottom]);
-
-  useEffect(() => {
-    isStreamingRef.current = isStreaming;
-  }, [isStreaming]);
-
-  useLayoutEffect(() => {
-    const prevLength = prevAssistantLengthRef.current;
-    const currentLength = currentAssistantMessage.length;
-
-    if (currentLength > 0 && prevLength === 0) {
-      // When assistant starts responding, scroll to position it at the top
-      updateNearBottom();
-      if (shouldFocusAssistantRef.current) {
-        // Always scroll to AI response when user sends a message
-        scrollAssistantIntoView("smooth");
-        // Capture top offset anchor relative to viewport
-        requestAnimationFrame(() => {
-          const viewport = viewportRef.current;
-          const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-          if (!viewport || !target) return;
-          const vRect = viewport.getBoundingClientRect();
-          const tRect = target.getBoundingClientRect();
-          anchorTopOffsetRef.current = tRect.top - vRect.top;
-          anchoredRef.current = true;
-        });
-        // Kick a short alignment loop to guarantee snap
-        startAlignmentLoop();
-      } else if (isUserNearBottomRef.current && !autoScrollDisabledRef.current) {
-        // Re-lock only if user is near bottom when new assistant message starts
-        scrollAssistantIntoView("auto");
-        requestAnimationFrame(() => {
-          const viewport = viewportRef.current;
-          const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-          if (!viewport || !target) return;
-          const vRect = viewport.getBoundingClientRect();
-          const tRect = target.getBoundingClientRect();
-          anchorTopOffsetRef.current = tRect.top - vRect.top;
-          anchoredRef.current = true;
-        });
-        startAlignmentLoop();
-      } else {
-        anchoredRef.current = false;
+    // Check if viewport is ready and scroll
+    const checkAndScroll = () => {
+      if (viewportRef.current) {
+        scrollToBottom();
       }
-      shouldFocusAssistantRef.current = false;
-      autoScrollDisabledRef.current = false;
-    }
+    };
+    
+    // Try immediately
+    checkAndScroll();
+    
+    // Also try after a short delay for initial mount
+    const timer = setTimeout(checkAndScroll, 150);
+    
+    return () => clearTimeout(timer);
+  }, [scrollToBottom, messages.length]);
 
-    prevAssistantLengthRef.current = currentLength;
-  }, [currentAssistantMessage, scrollAssistantIntoView, updateNearBottom, startAlignmentLoop]);
-
-  // Scroll as soon as streaming begins (before first token) to position placeholder at top and capture anchor
-  useLayoutEffect(() => {
-    if (isStreaming && shouldFocusAssistantRef.current) {
-      scrollAssistantIntoView("auto");
-      const viewport = viewportRef.current;
-      const target = streamingAssistantRef.current;
-      if (viewport && target) {
-        const vRect = viewport.getBoundingClientRect();
-        const tRect = target.getBoundingClientRect();
-        anchorTopOffsetRef.current = tRect.top - vRect.top;
-        anchoredRef.current = true;
-        startAlignmentLoop();
-      }
-      // We will allow near-bottom logic to disable scrolling if user scrolls away later
-      autoScrollDisabledRef.current = false;
-    }
-  }, [isStreaming, scrollAssistantIntoView, startAlignmentLoop]);
-
-  // Follow growth with ResizeObserver while streaming
+  // Track sticky input height and create bottom padding so content isn't hidden
   useEffect(() => {
-    const viewport = viewportRef.current;
-    const el = streamingAssistantRef.current;
-    if (!viewport || !el) return;
-
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-      resizeObserverRef.current = null;
-    }
-
+    const el = inputContainerRef.current;
+    if (!el) return;
     const ro = new ResizeObserver(() => {
-      if (!anchoredRef.current || autoScrollDisabledRef.current) return;
-      const vRect = viewport.getBoundingClientRect();
-      const tRect = el.getBoundingClientRect();
-      const diff = (tRect.top - vRect.top) - anchorTopOffsetRef.current;
-      if (Math.abs(diff) > 0.5) {
-        viewport.scrollTop += diff;
-      }
+      setInputHeight(el.offsetHeight || 0);
     });
     ro.observe(el);
-    resizeObserverRef.current = ro;
+    // initialize
+    setInputHeight(el.offsetHeight || 0);
+    return () => ro.disconnect();
+  }, []);
 
-    return () => {
-      ro.disconnect();
-      if (resizeObserverRef.current === ro) resizeObserverRef.current = null;
-    };
-  }, [currentAssistantMessage]);
+  useLayoutEffect(() => {
+    // Scroll on new messages or while streaming
+    if (messages.length > 0 || currentAssistantMessage) {
+      scrollToBottom(isStreaming && currentAssistantMessage ? "auto" : "smooth");
+    }
+  }, [messages.length, currentAssistantMessage, isStreaming, scrollToBottom]);
+
+  useEffect(() => {
+    if (isStreaming) {
+      // Initial scroll when streaming starts
+      scrollToBottom("smooth");
+      
+      // Continuous scroll during streaming to handle fast token generation
+      const scrollInterval = setInterval(() => {
+        scrollToBottom("auto");
+      }, 100);
+      
+      return () => clearInterval(scrollInterval);
+    }
+  }, [isStreaming, scrollToBottom]);
+
+  // If the input grows/shrinks (attachments, multi-line), keep the bottom visible while streaming
+  useEffect(() => {
+    if (isStreaming) {
+      requestAnimationFrame(() => scrollToBottom("auto"));
+    }
+  }, [inputHeight, isStreaming, scrollToBottom]);
 
   const loadSession = async (id: string) => {
     setIsLoadingSession(true);
@@ -326,6 +199,8 @@ export function ChatInterface({
           })
         );
         setMessages(messagesWithAttachments);
+        // Scroll to bottom after loading messages
+        setTimeout(() => scrollToBottom("auto"), 150);
       }
     } catch (error) {
       console.error('Error loading session:', error);
@@ -457,12 +332,6 @@ export function ChatInterface({
       }
     }
 
-    // Mark that we should focus on assistant response regardless of scroll position
-    updateNearBottom();
-    userWasNearBottomOnSendRef.current = isUserNearBottomRef.current;
-    shouldFocusAssistantRef.current = true; // Always scroll to AI response when sending
-    autoScrollDisabledRef.current = false;
-
     const userMessage: Message = { 
       role: "user", 
       content: cleanedPrompt || "Analyze the attached files",
@@ -474,6 +343,11 @@ export function ChatInterface({
     setAttachedFiles([]);
     setIsStreaming(true);
     setCurrentAssistantMessage("");
+
+    // Ensure scroll happens after state update and DOM render
+    setTimeout(() => {
+      scrollToBottom("smooth");
+    }, 50);
 
     // Save user message with ID returned
     const { data: savedMessage, error: saveError } = await supabase
@@ -526,23 +400,7 @@ export function ChatInterface({
       onToken: (token) => {
         assistantResponse += token;
         setCurrentAssistantMessage(assistantResponse);
-        const viewport = viewportRef.current;
-        const target = streamingAssistantRef.current ?? lastAssistantRef.current;
-        
-        // Maintain anchor position during streaming if anchored
-        if (
-          anchoredRef.current &&
-          viewport &&
-          target &&
-          !autoScrollDisabledRef.current
-        ) {
-          const vRect = viewport.getBoundingClientRect();
-          const tRect = target.getBoundingClientRect();
-          const diff = (tRect.top - vRect.top) - anchorTopOffsetRef.current;
-          if (Math.abs(diff) > 0.5) {
-            viewport.scrollTop += diff;
-          }
-        }
+        // Scrolling is handled by the continuous interval during streaming
       },
       onMetadata: (metadata) => {
         setTokenMetadata(metadata);
@@ -560,10 +418,9 @@ export function ChatInterface({
         ]);
         setCurrentAssistantMessage("");
         setIsStreaming(false);
-        shouldFocusAssistantRef.current = false;
-        autoScrollDisabledRef.current = false;
-        anchoredRef.current = false;
         abortControllerRef.current = null;
+        // Final smooth scroll after completion
+        setTimeout(() => scrollToBottom("smooth"), 100);
 
         // Save assistant message
         if (currentSessionId) {
@@ -580,9 +437,8 @@ export function ChatInterface({
         toast.error("Failed to get response from Gemini");
         setIsStreaming(false);
         setCurrentAssistantMessage("");
-        autoScrollDisabledRef.current = false;
-        anchoredRef.current = false;
         abortControllerRef.current = null;
+        setTimeout(() => scrollToBottom("smooth"), 100);
       },
     });
   };
@@ -601,10 +457,6 @@ export function ChatInterface({
     setInput("");
     setAttachedFiles([]);
     setSessionId(null);
-    shouldFocusAssistantRef.current = false;
-    isUserNearBottomRef.current = true;
-    autoScrollDisabledRef.current = false;
-    anchoredRef.current = false;
     onNewSession?.();
   };
 
@@ -634,15 +486,18 @@ export function ChatInterface({
   return (
     <div className="flex flex-col h-full">
       {/* Messages area - scrollable */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-hidden relative scroll-none">
         {/* Animated background */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
         </div>
 
-        <ScrollArea ref={scrollAreaRef} className="h-full">
-          <div className="max-w-4xl mx-auto space-y-6 py-6 px-6 min-h-full flex flex-col">
+          <div
+            ref={viewportRef}
+            className="max-w-4xl mx-auto space-y-6 py-6 px-6 min-h-full flex flex-col scroll-y-auto"
+            style={{ paddingBottom: inputHeight }}
+          >
             {messages.length === 0 && !currentAssistantMessage && (
               <div className="flex-1 flex items-start justify-center pt-20">
                 <div className="flex flex-col items-center text-center gap-5">
@@ -702,7 +557,6 @@ export function ChatInterface({
                         ? "bg-primary text-primary-foreground border-transparent"
                         : "bg-card/90 border-border"
                     )}
-                    ref={message.role === "assistant" ? lastAssistantRef : undefined}
                   >
                     <Suspense fallback={<MessageContentFallback />}>
                       <MessageContent content={message.content} attachments={message.attachments} />
@@ -718,7 +572,7 @@ export function ChatInterface({
                   <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center text-white text-sm font-medium">
                     AI
                   </div>
-                  <Card ref={streamingAssistantRef} className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
+                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
                     <Suspense fallback={<MessageContentFallback />}>
                       <MessageContent content={currentAssistantMessage} />
                     </Suspense>
@@ -733,8 +587,7 @@ export function ChatInterface({
                   <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center animate-pulse-glow">
                     <span className="text-white text-sm">AI</span>
                   </div>
-                  {/* Placeholder card for streaming, attach ref so we can scroll immediately */}
-                  <Card ref={streamingAssistantRef} className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
+                  <Card className="border px-5 py-4 rounded-2xl shadow-sm bg-card/90 border-border">
                     {isThinking ? (
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
@@ -775,12 +628,14 @@ export function ChatInterface({
             )}
 
           </div>
-        </ScrollArea>
       </div>
 
       {/* Sticky input area */}
       <div className="sticky bottom-0 left-0 right-0 pointer-events-none">
-        <div className="max-w-4xl mx-auto w-full space-y-3 pointer-events-auto px-6 py-4">
+        <div
+          ref={inputContainerRef}
+          className="max-w-4xl mx-auto w-full space-y-3 pointer-events-auto px-6 py-4"
+        >
           {/* Usage counters hidden to avoid a visible lower bar */}
           {false && tokenMetadata && (
             <div className="flex justify-center gap-4 text-xs text-muted-foreground">
