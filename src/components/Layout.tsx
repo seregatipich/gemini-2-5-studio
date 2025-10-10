@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from "react";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
+import { SafetySettings } from "@/lib/gemini";
 
 type ThinkingBudgetRange = {
   min: number;
@@ -26,12 +27,7 @@ interface LayoutProps {
     systemInstruction: string;
     urlContext: string;
     thinkingBudget: number;
-    safetySettings: {
-      harassment: string;
-      hateSpeech: string;
-      sexuallyExplicit: string;
-      dangerousContent: string;
-    };
+    safetySettings: SafetySettings;
     sessionId: string | null;
     onSessionCreated: (sessionId: string) => void;
     onNewSession: () => void;
@@ -49,7 +45,7 @@ export function Layout({ children }: LayoutProps) {
   const [thinkingBudget, setThinkingBudget] = useState(
     () => getThinkingBudgetRange(DEFAULT_MODEL).max
   );
-  const [safetySettings, setSafetySettings] = useState({
+  const [safetySettings, setSafetySettings] = useState<SafetySettings>({
     harassment: "BLOCK_NONE",
     hateSpeech: "BLOCK_NONE",
     sexuallyExplicit: "BLOCK_NONE",

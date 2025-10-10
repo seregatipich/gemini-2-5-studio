@@ -21,15 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-type SafetyLevel = "BLOCK_NONE" | "BLOCK_ONLY_HIGH" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_LOW_AND_ABOVE";
-
-interface SafetySettingsConfig {
-  harassment: SafetyLevel;
-  hateSpeech: SafetyLevel;
-  sexuallyExplicit: SafetyLevel;
-  dangerousContent: SafetyLevel;
-}
+import { SafetySettings, SafetyLevel } from "@/lib/gemini";
 
 interface TopBarProps {
   model: string;
@@ -52,8 +44,8 @@ interface TopBarProps {
     min: number;
     max: number;
   };
-  safetySettings: SafetySettingsConfig;
-  setSafetySettings: (settings: SafetySettingsConfig) => void;
+  safetySettings: SafetySettings;
+  setSafetySettings: (settings: SafetySettings) => void;
 }
 
 export function TopBar({ 

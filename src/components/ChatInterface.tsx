@@ -642,9 +642,9 @@ export function ChatInterface({
         </div>
 
         <ScrollArea ref={scrollAreaRef} className="h-full">
-          <div className="max-w-4xl mx-auto space-y-6 py-6 px-6">
+          <div className="max-w-4xl mx-auto space-y-6 py-6 px-6 min-h-full flex flex-col">
             {messages.length === 0 && !currentAssistantMessage && (
-              <div className="flex min-h-[60vh] items-center justify-center py-20">
+              <div className="flex-1 flex items-start justify-center pt-20">
                 <div className="flex flex-col items-center text-center gap-5">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow animate-float">
                     <svg
